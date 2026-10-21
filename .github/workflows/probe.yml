@@ -7,6 +7,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: |
-          for u in https://sciencebase.usgs.gov/manager/download/cm8wlveow001d0upn7bqaepz8 "https://www.sciencebase.gov/catalog/item/requestDownload/652d4fc5d34e44db0e2ee45e?filePath=__s3__"; do
-            echo "=== $u"; curl -sS -D - -o body -L -r 0-400 "$u" | grep -iE '^(HTTP|location|content-type|content-length)'; head -c 400 body | strings | head -20; echo
+          for q in 'PAD-US 4.1' 'PADUS4_1' 'PAD-US 4.0 Fee' 'Protected Areas Database of the United States'; do
+            echo "=== $q"
+            curl -sS -G 'https://www.arcgis.com/sharing/rest/search' --data-urlencode "q=$q type:\"Feature Service\"" --data-urlencode 'num=25' --data-urlencode 'f=json' | python3 -c '
+          import json,sys
+          for r in json.load(sys.stdin).get("results",[]): print(r["owner"],"|",r["title"],"|",r.get("url"),"|",r.get("access"))'
           done
+          echo "=== USGS org services"
+          curl -sS 'https://services.arcgis.com/v01gqwM5QqNysAAi/arcgis/rest/services?f=json' | head -c 3000
