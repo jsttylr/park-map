@@ -21,13 +21,22 @@ jobs:
         run: curl -fsSL -o all_parks_ext.csv https://pota.app/all_parks_ext.csv && wc -l all_parks_ext.csv
       - name: Download PAD-US 4.1
         run: |
+          item=652d4fc5d34e44db0e2ee45e
+          curl -fsSL "https://www.sciencebase.gov/catalog/item/$item?format=json" | python3 -c 'import json,sys; [print(json.dumps(f)) for f in json.load(sys.stdin)["files"] if f["name"].endswith(".zip")]' | tee files.json
+          urls=$(python3 -c 'import json; f=json.loads(open("files.json").readline()); print(" ".join(u for u in [f.get("downloadUri"), f.get("url")] if u))')
+          urls="$urls https://www.sciencebase.gov/catalog/file/get/$item?name=PADUS4_1Geodatabase.zip"
           mkdir -p padus && cd padus
-          curl -fsSL -o padus.zip https://sciencebase.usgs.gov/manager/item/652d4fc5d34e44db0e2ee45e/file/cm8wlveow001d0upn7bqaepz8
+          for u in $urls; do
+            echo "trying $u"
+            if curl -fsSL -r 0-1 "$u" | grep -q PK; then curl -fsSL -o padus.zip "$u" && break; fi
+          done
+          ls -la padus.zip
           unzip -q padus.zip && rm padus.zip
           find . -maxdepth 3 -name '*.gdb' -type d
           df -h . | tail -1
       - name: Export PAD-US layers
         run: |
+          set -o pipefail
           gdb=$(find padus -maxdepth 3 -name '*.gdb' -type d | head -1)
           ogrinfo -ro -q "$gdb" | tee layers.txt
           mkdir -p layers
