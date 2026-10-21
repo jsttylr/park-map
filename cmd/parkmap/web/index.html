@@ -44,6 +44,9 @@
   .pop ul { margin: 0 0 6px; padding-left: 16px; }
   .pop li { margin: 2px 0; }
   .pop a { color: var(--accent); }
+  .about summary { cursor: pointer; }
+  .about p { margin: 6px 0 0; }
+  .about a, .pop a { color: var(--accent); }
   .pop .text { margin-top: 6px; padding: 6px; border-radius: 4px; background: color-mix(in srgb, var(--fg) 7%, var(--bg)); font: 12px ui-monospace, monospace; }
 </style>
 </head>
@@ -77,6 +80,12 @@
     </div>
     <div class="muted" id="stats">Loading…</div>
     <div class="muted">Click anywhere on the map to see every park and summit at that spot.</div>
+    <details class="muted about">
+      <summary>About and disclaimer</summary>
+      <p>Inspired by <a href="https://fieldqth.app" target="_blank" rel="noopener">FieldQTH</a> by LX1MDA. Parks: <a href="https://pota.app" target="_blank" rel="noopener">POTA</a>. Boundaries: USGS PAD-US 4.1. Summits: <a href="https://www.sota.org.uk" target="_blank" rel="noopener">SOTA</a>. Activation zones © <a href="https://sotl.as" target="_blank" rel="noopener">sotl.as</a> contributors.</p>
+      <p><strong>Use at your own risk.</strong> Boundaries and n-fer counts are approximate and may be wrong or out of date; no liability is accepted for their accuracy. A shape on this map is not permission to enter: respect private property, posted closures and land managers' rules, and never trespass. Not for navigation. Summits and multi-park spots can be remote and hazardous, and anyone who goes there assumes all risk.</p>
+      <p><a href="https://github.com/jsttylr/park-map#disclaimer" target="_blank" rel="noopener">Full disclaimer and sources</a></p>
+    </details>
   </div>
 </div>
 <script>
@@ -103,7 +112,7 @@ $("pointsOnly").checked = state.pointsOnly; $("base").value = bases[state.base] 
 if (window.innerWidth < 600) $("panel").classList.add("closed");
 
 const view = store.get("view", { center: [-98.5, 39.5], zoom: 3.6 });
-const map = new maplibregl.Map({
+const map = window.map = new maplibregl.Map({
   container: "map", center: view.center, zoom: view.zoom, hash: true,
   style: { version: 8, sources: {}, layers: [] },
 });
