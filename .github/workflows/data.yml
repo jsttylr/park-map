@@ -2,7 +2,7 @@ name: build-data
 on:
   push:
     branches-ignore: [main]
-    paths: ['cmd/builddata/**', 'internal/**', '.github/workflows/data.yml']
+    paths: ['cmd/**', 'internal/**', '.github/workflows/data.yml']
   workflow_dispatch:
   schedule:
     - cron: '0 6 2 * *' # monthly
@@ -15,12 +15,24 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - name: Month
+        id: month
+        run: echo "m=$(date +%Y-%m)" >> "$GITHUB_OUTPUT"
+      - name: Cached PAD-US download
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: padus.geojsonl.gz
+          key: padus-4.1-${{ steps.month.outputs.m }}
+      - name: Download PAD-US 4.1 from the USGS web service
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: go run ./cmd/fetchpadus -out padus.geojsonl.gz
       - name: Download POTA park list
         run: curl -fsSL -o all_parks_ext.csv https://pota.app/all_parks_ext.csv && wc -l all_parks_ext.csv
-      - name: Match parks to PAD-US boundaries
-        run: go run ./cmd/builddata -pota all_parks_ext.csv -out us-parks.geojson.gz -report report.csv
+      - name: Match parks to boundaries
+        run: go run ./cmd/builddata -pota all_parks_ext.csv -out us-parks.geojson.gz -report report.csv padus.geojsonl.gz
       - name: Output sizes
-        run: ls -la us-parks.geojson.gz report.csv
+        run: ls -la padus.geojsonl.gz us-parks.geojson.gz report.csv
       - uses: actions/upload-artifact@v4
         with:
           name: us-parks
