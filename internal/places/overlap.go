@@ -1,10 +1,13 @@
 package places
 
 import (
+	"log"
 	"math"
 	"runtime"
 	"sort"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/paulmach/orb"
 )
@@ -27,7 +30,9 @@ type pair struct {
 // place: the most places you can stand in at once somewhere inside it. It
 // samples points, so slivers smaller than the sample spacing can be missed.
 func (s *Set) ComputeOverlaps() {
+	t := time.Now()
 	pairs := s.findPairs()
+	log.Printf("overlaps: %d overlapping pairs found in %v", len(pairs), time.Since(t).Round(time.Millisecond))
 	nb := make([]map[int]bool, len(s.Places))
 	for _, pr := range pairs {
 		for _, x := range [][2]int{{pr.a, pr.b}, {pr.b, pr.a}} {
@@ -88,7 +93,11 @@ func (s *Set) ComputeOverlaps() {
 func (s *Set) findPairs() []pair {
 	var mu sync.Mutex
 	var pairs []pair
+	var done atomic.Int64
 	parallel(len(s.Places), func(i int) {
+		if n := done.Add(1); n%5000 == 0 {
+			log.Printf("overlaps: checked %d of %d places", n, len(s.Places))
+		}
 		a := s.Places[i]
 		if a.Shape == nil {
 			return

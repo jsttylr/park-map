@@ -1,11 +1,14 @@
 package places
 
 import (
+	"math"
+	"math/rand"
 	"testing"
 
 	"github.com/paulmach/orb"
 	"github.com/paulmach/orb/encoding/mvt"
 	"github.com/paulmach/orb/maptile"
+	"github.com/paulmach/orb/planar"
 )
 
 func box(x0, y0, x1, y1 float64) *Shape {
@@ -103,5 +106,24 @@ func TestSummary(t *testing.T) {
 	}
 	if got := Summary(nil, nil, 160); got != "No parks here." {
 		t.Errorf("empty: %q", got)
+	}
+}
+
+func TestLongRing(t *testing.T) {
+	// A wobbly 5000-point ring, checked against orb's plain point test.
+	var r orb.Ring
+	for i := 0; i < 5000; i++ {
+		a := float64(i) / 5000 * 2 * math.Pi
+		rad := 1 + 0.3*math.Sin(a*37)
+		r = append(r, orb.Point{rad * math.Cos(a), rad * math.Sin(a)})
+	}
+	r = append(r, r[0])
+	s := newShape(orb.MultiPolygon{{r}})
+	rng := rand.New(rand.NewSource(1))
+	for i := 0; i < 20000; i++ {
+		p := orb.Point{rng.Float64()*3 - 1.5, rng.Float64()*3 - 1.5}
+		if got, want := s.Contains(p), planar.RingContains(r, p); got != want {
+			t.Fatalf("Contains(%v) = %v, want %v", p, got, want)
+		}
 	}
 }
