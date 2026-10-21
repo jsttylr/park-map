@@ -10,7 +10,7 @@
 <style>
   :root {
     --bg: #ffffff; --fg: #1d2330; --muted: #5f6b7a; --line: #d9dee5; --accent: #2e7d32;
-    --park: #2e7d32; --n2: #1e88e5; --n3: #8e24aa; --n4: #e53935; --summit: #ffd600; --summit-edge: #e65100;
+    --park: #2e7d32; --n2: #1e88e5; --n3: #e53935; --n4: #fb8c00; --summit: #ffd600; --summit-edge: #4e342e;
   }
   @media (prefers-color-scheme: dark) {
     :root { --bg: #1b1f27; --fg: #e8ebf0; --muted: #9aa5b4; --line: #343b47; --accent: #66bb6a; }
@@ -91,7 +91,7 @@
 <script src="coord.js"></script>
 <script>
 // Fixed colors (not read from CSS) so the map looks the same in every browser.
-const C = { park: "#2e7d32", n2: "#1e88e5", n3: "#8e24aa", n4: "#e53935", summit: "#ffd600", summitEdge: "#e65100" };
+const C = { park: "#2e7d32", n2: "#1e88e5", n3: "#e53935", n4: "#fb8c00", summit: "#ffd600", summitEdge: "#4e342e" };
 const bases = {
   topo: { tiles: ["a", "b", "c"].map(s => `https://${s}.tile.opentopomap.org/{z}/{x}/{y}.png`), maxzoom: 17, attribution: "© OpenStreetMap contributors, SRTM | © OpenTopoMap (CC-BY-SA)" },
   usgs: { tiles: ["https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}"], maxzoom: 16, attribution: "USGS The National Map" },
@@ -137,6 +137,9 @@ map.on("load", () => {
   map.addLayer({ id: "parks-line", type: "line", source: "places", "source-layer": "parks", paint: { "line-color": C.park, "line-width": 1.2 } });
   map.addLayer({ id: "nfer-fill", type: "fill", source: "places", "source-layer": "nfer", paint: { "fill-opacity": 0.5 } });
   map.addLayer({ id: "nfer-line", type: "line", source: "places", "source-layer": "nfer", paint: { "line-width": 1 } });
+  // Zoomed out, small overlap patches are too small to see, so each also gets a dot.
+  map.addLayer({ id: "nfer-points", type: "circle", source: "places", "source-layer": "nfer_points", maxzoom: 10,
+    paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 2.5, 9, 4.5], "circle-stroke-color": "#fff", "circle-stroke-width": 1 } });
   map.addLayer({ id: "zones-fill", type: "fill", source: "places", "source-layer": "zones", paint: { "fill-color": C.summit, "fill-opacity": 0.45 } });
   map.addLayer({ id: "zones-line", type: "line", source: "places", "source-layer": "zones", paint: { "line-color": C.summitEdge, "line-width": 2, "line-dasharray": [2, 1.5] } });
   map.addLayer({ id: "park-points", type: "circle", source: "places", "source-layer": "park_points",
@@ -163,11 +166,13 @@ function apply() {
   map.setLayoutProperty("parks-fill", "visibility", state.nfer === 1 ? "visible" : "none");
   map.setFilter("parks-line", atLeast);
   const patches = [">=", ["get", key], Math.max(state.nfer, 2)];
-  for (const id of ["nfer-fill", "nfer-line"]) map.setFilter(id, patches);
+  for (const id of ["nfer-fill", "nfer-line", "nfer-points"]) map.setFilter(id, patches);
+  map.setLayoutProperty("nfer-points", "circle-sort-key", ["get", key]);
+  map.setPaintProperty("nfer-points", "circle-color", colorBy(key));
   map.setLayoutProperty("nfer-fill", "fill-sort-key", ["get", key]);
   map.setPaintProperty("nfer-fill", "fill-color", colorBy(key));
   map.setPaintProperty("nfer-line", "line-color", colorBy(key));
-  map.setPaintProperty("park-points", "circle-color", colorBy(key));
+  map.setPaintProperty("park-points", "circle-color", C.park);
   map.setFilter("park-points", state.pointsOnly ? atLeast : ["all", atLeast, ["get", "outline"]]);
   const summitFilter = state.countSummits ? atLeast : null;
   for (const id of ["zones-fill", "zones-line", "summit-points"]) {
@@ -187,7 +192,7 @@ map.on("moveend", () => store.set("view", { center: map.getCenter().toArray(), z
 
 function link(p) {
   return p.kind === "summit"
-    ? `<a href="https://sotl.as/summits/${encodeURIComponent(p.ref)}" target="_blank" rel="noopener">${esc(p.ref)}</a>`
+    ? `<a href="https://sotl.as/summits/${p.ref.split("/").map(encodeURIComponent).join("/")}" target="_blank" rel="noopener">${esc(p.ref)}</a>`
     : `<a href="https://pota.app/#/park/${encodeURIComponent(p.ref)}" target="_blank" rel="noopener">${esc(p.ref)}</a>`;
 }
 

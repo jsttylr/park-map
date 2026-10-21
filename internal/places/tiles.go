@@ -12,10 +12,11 @@ import (
 
 // Zoom levels at which each tile layer starts.
 const (
-	OutlineZoom = 6 // park outlines
-	ZoneZoom    = 9 // summit activation zones
-	SummitZoom  = 5 // summit points
-	RegionZoom  = 5 // n-fer overlap patches
+	OutlineZoom  = 6  // park outlines
+	ZoneZoom     = 9  // summit activation zones
+	SummitZoom   = 5  // summit points
+	RegionZoom   = 5  // n-fer overlap patches
+	PatchDotZoom = 10 // below this, each overlap patch also gets a dot so small ones stay visible
 )
 
 // lodTolerance is the simplification, in degrees, for each detail level.
@@ -60,7 +61,7 @@ func (s *Set) Tile(t maptile.Tile) ([]byte, error) {
 	fc := map[string]*geojson.FeatureCollection{
 		"parks": geojson.NewFeatureCollection(), "zones": geojson.NewFeatureCollection(),
 		"park_points": geojson.NewFeatureCollection(), "summits": geojson.NewFeatureCollection(),
-		"nfer": geojson.NewFeatureCollection(),
+		"nfer": geojson.NewFeatureCollection(), "nfer_points": geojson.NewFeatureCollection(),
 	}
 	if s.Regions != nil && t.Z >= RegionZoom {
 		for _, r := range s.Regions.Within(bound) {
@@ -68,6 +69,13 @@ func (s *Set) Tile(t maptile.Tile) ([]byte, error) {
 				f := geojson.NewFeature(mp)
 				f.Properties = geojson.Properties{"nfer": r.NFer, "nfer_all": r.NFerAll, "refs": r.Ref}
 				fc["nfer"].Append(f)
+			}
+			if t.Z < PatchDotZoom {
+				if pt := r.inner(); bound.Contains(pt) {
+					f := geojson.NewFeature(pt)
+					f.Properties = geojson.Properties{"nfer": r.NFer, "nfer_all": r.NFerAll, "refs": r.Ref}
+					fc["nfer_points"].Append(f)
+				}
 			}
 		}
 	}

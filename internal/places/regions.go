@@ -18,6 +18,7 @@ import (
 	"github.com/paulmach/orb"
 	"github.com/paulmach/orb/clip"
 	"github.com/paulmach/orb/geojson"
+	"github.com/paulmach/orb/planar"
 )
 
 // Region is the Kind of a place that is an n-fer area: the exact patch where
@@ -274,4 +275,32 @@ func toInt(v any) (int, error) {
 		return int(f), nil
 	}
 	return 0, fmt.Errorf("not a number: %v", v)
+}
+
+// inner returns a point inside the patch for drawing it as a dot: the middle
+// of its bounding box if that's inside, otherwise a point near the middle of
+// its biggest piece.
+func (p *Place) inner() orb.Point {
+	if p.Shape == nil || p.Shape.Contains(p.Pt) {
+		return p.Pt
+	}
+	best, area := orb.Polygon(nil), -1.0
+	for _, poly := range p.Shape.MP {
+		if a := math.Abs(planar.Area(poly)); a > area {
+			best, area = poly, a
+		}
+	}
+	if c, _ := planar.CentroidArea(best); p.Shape.Contains(c) {
+		return c
+	}
+	// Scan across the middle of the piece for the widest stretch inside it.
+	b := best.Bound()
+	y := (b.Min[1] + b.Max[1]) / 2
+	for i := 1; i < 64; i++ {
+		pt := orb.Point{b.Min[0] + (b.Max[0]-b.Min[0])*float64(i)/64, y}
+		if p.Shape.Contains(pt) {
+			return pt
+		}
+	}
+	return best[0][0]
 }

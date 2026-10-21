@@ -1,0 +1,16 @@
+name: matchcheck
+on:
+  push:
+    paths: [".github/workflows/matchcheck.yml", "cmd/matchcheck/**"]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: gh run download 39693150003 -n map-data -D old
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - run: go run ./cmd/matchcheck old/report.csv

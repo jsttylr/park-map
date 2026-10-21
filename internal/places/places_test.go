@@ -74,6 +74,7 @@ func TestSearch(t *testing.T) {
 func TestTile(t *testing.T) {
 	s := testSet()
 	s.ComputeOverlaps()
+	s.ComputeRegions()
 	s.PrepareTiles()
 	for _, z := range []maptile.Zoom{3, 7, 10, 14} {
 		b, err := s.Tile(maptile.At(orb.Point{0.53, 0.52}, z))
@@ -88,7 +89,8 @@ func TestTile(t *testing.T) {
 		for _, l := range layers {
 			n[l.Name] = len(l.Features)
 		}
-		if z >= ZoneZoom && n["zones"] != 1 || z >= OutlineZoom && n["parks"] < 3 || z < 8 && n["park_points"] < 4 {
+		if z >= ZoneZoom && n["zones"] != 1 || z >= OutlineZoom && n["parks"] < 3 || z < 8 && n["park_points"] < 4 ||
+			z >= RegionZoom && n["nfer"] == 0 || (z >= RegionZoom && z < PatchDotZoom) != (n["nfer_points"] > 0) {
 			t.Errorf("zoom %d: %v", z, n)
 		}
 	}
@@ -179,6 +181,11 @@ func TestRegions(t *testing.T) {
 			if b := r.Shape.Bound; math.Abs(b.Min[0]-0.2) > 1e-9 || math.Abs(b.Max[1]-0.6) > 1e-9 {
 				t.Errorf("patch bound %v", b)
 			}
+		}
+	}
+	for _, r := range s.Regions.Places {
+		if pt := r.inner(); !r.Shape.Contains(pt) {
+			t.Errorf("%s: dot %v is outside the patch", r.Ref, pt)
 		}
 	}
 	path := t.TempDir() + "/nfer.geojson.gz"
