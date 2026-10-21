@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/jsttylr/park-map/internal/places"
@@ -12,7 +13,19 @@ import (
 
 // runSelftest prints a few lookups and tile timings so a build log shows
 // whether the data and overlaps look sane.
-func runSelftest(s *places.Set) {
+func runSelftest(s *places.Set, explain string) {
+	for _, ref := range strings.Split(explain, ",") {
+		for _, p := range s.Search(strings.TrimSpace(ref), 1) {
+			fmt.Printf("%s %q at %.5f,%.5f in %s\n", p.Ref, p.Name, p.Pt[1], p.Pt[0], p.Loc)
+			fmt.Printf("  boundary %v, designation %v, manager %v, match %v\n", p.Props["boundary_name"], p.Props["designation"], p.Props["manager"], p.Props["match"])
+			if p.Shape != nil {
+				b := p.Shape.Bound
+				fmt.Printf("  %d parts, bounds %.4f,%.4f to %.4f,%.4f (%.0f x %.0f km)\n", len(p.Shape.MP), b.Min[1], b.Min[0], b.Max[1], b.Max[0],
+					places.Km(orb.Point{b.Min[0], b.Min[1]}, orb.Point{b.Max[0], b.Min[1]}), places.Km(orb.Point{b.Min[0], b.Min[1]}, orb.Point{b.Min[0], b.Max[1]}))
+			}
+		}
+	}
+
 	spots := []struct {
 		name string
 		pt   orb.Point

@@ -36,6 +36,7 @@ func main() {
 	listen := flag.String("listen", env("PARK_MAP_LISTEN", "0.0.0.0:8075"), "address and port for the web page")
 	health := flag.Bool("healthcheck", false, "check that the server is answering, then exit")
 	selftest := flag.Bool("selftest", false, "load the data, print what was found, then exit")
+	explain := flag.String("explain", "", "with -selftest: comma-separated references to describe in detail")
 	regionsOut := flag.String("write-regions", "", "work out the n-fer overlap patches, save them to this file, then exit")
 	flag.Parse()
 
@@ -82,7 +83,7 @@ func main() {
 	log.Printf("%+v, memory in use %d MB", info, ms.HeapAlloc>>20)
 
 	if *selftest {
-		runSelftest(set)
+		runSelftest(set, *explain)
 		return
 	}
 
