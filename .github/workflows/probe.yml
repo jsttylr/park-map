@@ -1,0 +1,12 @@
+name: probe
+on:
+  push:
+    paths: ['.github/workflows/probe.yml']
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          for u in https://sciencebase.usgs.gov/manager/download/cm8wlveow001d0upn7bqaepz8 "https://www.sciencebase.gov/catalog/item/requestDownload/652d4fc5d34e44db0e2ee45e?filePath=__s3__"; do
+            echo "=== $u"; curl -sS -D - -o body -L -r 0-400 "$u" | grep -iE '^(HTTP|location|content-type|content-length)'; head -c 400 body | strings | head -20; echo
+          done
