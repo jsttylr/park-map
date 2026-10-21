@@ -1,0 +1,23 @@
+package match
+
+import "testing"
+
+func TestSimilarity(t *testing.T) {
+	cases := []struct {
+		a, b     string
+		min, max float64
+	}{
+		{"Acadia National Park", "Acadia National Park", 0.99, 1},
+		{"Bear Creek State Park", "Bear Creek SP", 0.99, 1},
+		{"Mt. Hood National Forest", "Mount Hood National Forest", 0.99, 1},
+		{"Isle Royale", "Isle Royale National Park", 0.8, 1},
+		{"Bear Creek State Park", "Pine Lake State Park", 0, 0.2},
+		{"Okefenokee National Wildlife Refuge", "Okefenokee NWR", 0.99, 1},
+	}
+	for _, c := range cases {
+		s := Similarity(c.a, c.b)
+		if s < c.min || s > c.max {
+			t.Errorf("Similarity(%q, %q) = %.2f, want %.2f..%.2f", c.a, c.b, s, c.min, c.max)
+		}
+	}
+}

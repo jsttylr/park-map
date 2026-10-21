@@ -1,0 +1,4 @@
+*.geojson.gz
+*.geojsonl
+report.csv
+all_parks_ext.csv
