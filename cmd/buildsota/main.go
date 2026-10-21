@@ -22,6 +22,7 @@ import (
 
 	"github.com/paulmach/orb"
 	"github.com/paulmach/orb/geojson"
+	"github.com/paulmach/orb/simplify"
 )
 
 type summit struct {
@@ -172,12 +173,20 @@ func readZones(path string, byCode map[string]*summit) (int, error) {
 		if s == nil {
 			continue
 		}
+		var mp orb.MultiPolygon
 		switch g := ft.Geometry.(type) {
 		case orb.Polygon:
-			s.zone = append(s.zone, g)
+			mp = orb.MultiPolygon{g}
 		case orb.MultiPolygon:
-			s.zone = append(s.zone, g...)
-		default:
+			mp = g
+		}
+		before := len(s.zone)
+		for _, poly := range mp {
+			if len(poly) > 0 && len(poly[0]) >= 4 {
+				s.zone = append(s.zone, poly)
+			}
+		}
+		if len(s.zone) == before {
 			continue
 		}
 		n++
@@ -197,7 +206,11 @@ func write(path string, summits []*summit) error {
 	for i, s := range summits {
 		var g orb.Geometry = s.Pt
 		if len(s.zone) > 0 {
-			g = orb.Round(s.zone, 1e5)
+			// Zones follow DEM contours closely; 5 m of detail is plenty for a map.
+			z := simplify.DouglasPeucker(0.00005).MultiPolygon(s.zone)
+			if len(z) > 0 {
+				g = orb.Round(z, 1e5)
+			}
 		}
 		ft := geojson.NewFeature(g)
 		ft.Properties = geojson.Properties{

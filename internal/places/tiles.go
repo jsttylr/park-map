@@ -18,7 +18,7 @@ const (
 )
 
 // lodTolerance is the simplification, in degrees, for each detail level.
-var lodTolerance = []float64{0.002, 0.0004, 0.00008}
+var lodTolerance = []float64{0.002, 0.0004}
 
 func lodFor(z maptile.Zoom) int {
 	switch {
@@ -26,8 +26,6 @@ func lodFor(z maptile.Zoom) int {
 		return 0
 	case z < 11:
 		return 1
-	case z < 13:
-		return 2
 	}
 	return -1 // full detail
 }
