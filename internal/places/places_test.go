@@ -147,3 +147,46 @@ func TestEmptyParts(t *testing.T) {
 		t.Error("empty outline should become a point")
 	}
 }
+
+func TestRegions(t *testing.T) {
+	s := testSet()
+	s.ComputeOverlaps()
+	s.ComputeRegions()
+	type want struct{ parks, all int }
+	got := map[string]want{}
+	for _, r := range s.Regions.Places {
+		got[r.Ref] = want{r.NFer, r.NFerAll}
+	}
+	for ref, w := range map[string]want{
+		"US-0001 US-0002":                    {2, 2},
+		"US-0001 US-0003":                    {2, 2},
+		"US-0003 US-0004":                    {2, 2},
+		"US-0001 US-0002 US-0003":            {3, 3},
+		"US-0001 US-0002 W0X/AA-001":         {2, 3},
+		"US-0001 US-0002 US-0003 W0X/AA-001": {3, 4},
+	} {
+		if got[ref] != w {
+			t.Errorf("%s: got %v, want %v", ref, got[ref], w)
+		}
+	}
+	// Next Door only shares an edge with Big Forest, so no patch for them.
+	if _, ok := got["US-0001 US-0004"]; ok {
+		t.Error("edge-only neighbours got an overlap patch")
+	}
+	// The 2-fer patch of the forest and the wilderness is the wilderness box.
+	for _, r := range s.Regions.Places {
+		if r.Ref == "US-0001 US-0002" {
+			if b := r.Shape.Bound; math.Abs(b.Min[0]-0.2) > 1e-9 || math.Abs(b.Max[1]-0.6) > 1e-9 {
+				t.Errorf("patch bound %v", b)
+			}
+		}
+	}
+	path := t.TempDir() + "/nfer.geojson.gz"
+	if err := s.WriteRegions(path); err != nil {
+		t.Fatal(err)
+	}
+	n := len(s.Regions.Places)
+	if err := s.LoadRegions(path); err != nil || len(s.Regions.Places) != n {
+		t.Fatalf("reload: %d patches, %v", len(s.Regions.Places), err)
+	}
+}

@@ -143,12 +143,17 @@ func main() {
 	}
 	for _, l := range layers {
 		err := eachFeature(l, func(f *geojson.Feature, mp orb.MultiPolygon) {
-			k := unitKey(f)
-			if k == "" || len(want[k]) == 0 {
+			var ps []*park
+			for _, k := range []string{unitKey(f), locKey(f)} {
+				if k != "" {
+					ps = append(ps, want[k]...)
+				}
+			}
+			if len(ps) == 0 {
 				return
 			}
 			b := mp.Bound()
-			for _, p := range want[k] {
+			for _, p := range ps {
 				if b.Pad(gatherKm / kmPerDeg).Contains(p.Pt) {
 					p.geom = append(p.geom, mp...)
 				}
@@ -269,23 +274,36 @@ func unitKey(f *geojson.Feature) string {
 	return match.Key(u) + "|" + prop(f, "Mang_Name") + "|" + prop(f, "FeatClass")
 }
 
+// locKey names the local piece of a unit (Loc_Nm), such as one trail or
+// tract inside a national forest, so a park matched by that name collects only
+// that piece and not the whole forest.
+func locKey(f *geojson.Feature) string {
+	l := prop(f, "Loc_Nm")
+	if l == "" {
+		return ""
+	}
+	return "loc:" + match.Key(l) + "|" + unitKey(f)
+}
+
 func score(f *geojson.Feature, layer string, mp orb.MultiPolygon, p *park) *candidate {
 	unit := prop(f, "Unit_Nm")
 	if unit == "" {
 		return nil
 	}
-	s := 0.0
+	s, key, name := 0.0, unitKey(f), unit
 	if match.SharesName(p.Name, unit) {
 		s = match.Similarity(p.Name, unit)
 	}
-	if loc := prop(f, "Loc_Nm"); loc != "" && match.SharesName(p.Name, loc) {
-		s = math.Max(s, match.Similarity(p.Name, loc))
+	if loc := prop(f, "Loc_Nm"); loc != "" && match.Key(loc) != match.Key(unit) && match.SharesName(p.Name, loc) {
+		if ls := match.Similarity(p.Name, loc); ls > s {
+			s, key, name = ls, locKey(f), loc
+		}
 	}
 	if s < minMedium {
 		return nil
 	}
 	c := &candidate{
-		Key: unitKey(f), Unit: unit, Layer: prop(f, "FeatClass"), Score: s,
+		Key: key, Unit: name, Layer: prop(f, "FeatClass"), Score: s,
 		Manager:     prop(f, "Mang_Name"),
 		Designation: prop(f, "Des_Tp"),
 	}

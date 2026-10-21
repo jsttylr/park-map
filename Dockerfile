@@ -1,5 +1,5 @@
 # Small image: the one program plus the map data, no operating system inside.
-# The build workflow puts us-parks.geojson.gz and sota.geojson.gz in data/ first.
+# The build workflow puts us-parks.geojson.gz, sota.geojson.gz and nfer.geojson.gz in data/ first.
 FROM --platform=$BUILDPLATFORM golang:1.24 AS build
 ARG TARGETOS TARGETARCH
 WORKDIR /src
@@ -11,7 +11,7 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags=
 
 FROM scratch
 COPY --from=build /out/park-map /park-map
-COPY data/us-parks.geojson.gz data/sota.geojson.gz /data/
+COPY data/us-parks.geojson.gz data/sota.geojson.gz data/nfer.geojson.gz /data/
 ENV PARK_MAP_DATA=/data PARK_MAP_LISTEN=0.0.0.0:8075
 # Unraid reads these to show the icon and an "open the page" link however the container was added.
 LABEL net.unraid.docker.icon="https://raw.githubusercontent.com/jsttylr/park-map/main/unraid/icon.png" \

@@ -40,6 +40,12 @@ func runSelftest(s *places.Set) {
 		fmt.Printf("  %d-fer (%d with summits)  %s %s, %s\n", p.NFer, p.NFerAll, p.Ref, p.Name, p.Loc)
 	}
 
+	byN := map[int]int{}
+	for _, r := range s.Regions.Places {
+		byN[min(r.NFer, 6)]++
+	}
+	fmt.Printf("\nOverlap patches by number of parks: %v\n", byN)
+
 	fmt.Println("\nTile timings:")
 	for _, tc := range []struct {
 		z    maptile.Zoom

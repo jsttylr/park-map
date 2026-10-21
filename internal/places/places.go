@@ -26,8 +26,11 @@ const (
 )
 
 func (k Kind) String() string {
-	if k == Summit {
+	switch k {
+	case Summit:
 		return "summit"
+	case Region:
+		return "region"
 	}
 	return "park"
 }
@@ -56,6 +59,9 @@ type Place struct {
 type Set struct {
 	Places []*Place
 	grid   map[cellKey][]int32
+
+	// Regions holds the overlap patches (Kind Region), once worked out.
+	Regions *Set
 }
 
 const cellDeg = 0.25

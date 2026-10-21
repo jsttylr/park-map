@@ -15,6 +15,7 @@ const (
 	OutlineZoom = 6 // park outlines
 	ZoneZoom    = 9 // summit activation zones
 	SummitZoom  = 5 // summit points
+	RegionZoom  = 5 // n-fer overlap patches
 )
 
 // lodTolerance is the simplification, in degrees, for each detail level.
@@ -32,6 +33,9 @@ func lodFor(z maptile.Zoom) int {
 
 // PrepareTiles makes the simplified outlines used for zoomed-out tiles.
 func (s *Set) PrepareTiles() {
+	if s.Regions != nil {
+		s.Regions.PrepareTiles()
+	}
 	parallel(len(s.Places), func(i int) {
 		p := s.Places[i]
 		if p.Shape == nil {
@@ -48,13 +52,24 @@ func (s *Set) PrepareTiles() {
 }
 
 // Tile renders one gzipped Mapbox vector tile with layers "parks" (outlines),
-// "zones" (activation zones), "park_points" and "summits".
+// "zones" (activation zones), "nfer" (overlap patches), "park_points" and
+// "summits".
 func (s *Set) Tile(t maptile.Tile) ([]byte, error) {
 	bound := t.Bound(0.05)
 	lod := lodFor(t.Z)
 	fc := map[string]*geojson.FeatureCollection{
 		"parks": geojson.NewFeatureCollection(), "zones": geojson.NewFeatureCollection(),
 		"park_points": geojson.NewFeatureCollection(), "summits": geojson.NewFeatureCollection(),
+		"nfer": geojson.NewFeatureCollection(),
+	}
+	if s.Regions != nil && t.Z >= RegionZoom {
+		for _, r := range s.Regions.Within(bound) {
+			if mp := clipParts(r, lod, bound); len(mp) > 0 {
+				f := geojson.NewFeature(mp)
+				f.Properties = geojson.Properties{"nfer": r.NFer, "nfer_all": r.NFerAll, "refs": r.Ref}
+				fc["nfer"].Append(f)
+			}
+		}
 	}
 	for _, p := range s.Within(bound) {
 		props := geojson.Properties{

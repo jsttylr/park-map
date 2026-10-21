@@ -36,6 +36,7 @@ func main() {
 	listen := flag.String("listen", env("PARK_MAP_LISTEN", "0.0.0.0:8075"), "address and port for the web page")
 	health := flag.Bool("healthcheck", false, "check that the server is answering, then exit")
 	selftest := flag.Bool("selftest", false, "load the data, print what was found, then exit")
+	regionsOut := flag.String("write-regions", "", "work out the n-fer overlap patches, save them to this file, then exit")
 	flag.Parse()
 
 	if *health {
@@ -56,6 +57,21 @@ func main() {
 	t := time.Now()
 	set.ComputeOverlaps()
 	log.Printf("worked out overlaps in %v", time.Since(t).Round(time.Millisecond))
+	regionsFile := filepath.Join(*dataDir, "nfer.geojson.gz")
+	if *regionsOut != "" {
+		set.ComputeRegions()
+		if err := set.WriteRegions(*regionsOut); err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("saved %d overlap patches to %s", len(set.Regions.Places), *regionsOut)
+		return
+	}
+	if err := set.LoadRegions(regionsFile); err != nil {
+		log.Printf("no saved overlap patches (%v), working them out", err)
+		set.ComputeRegions()
+	} else {
+		log.Printf("loaded %d overlap patches", len(set.Regions.Places))
+	}
 	t = time.Now()
 	set.PrepareTiles()
 	log.Printf("prepared map detail levels in %v", time.Since(t).Round(time.Millisecond))

@@ -20,6 +20,7 @@ jobs:
           go-version-file: go.mod
       - run: go vet ./...
       - run: go test -race ./...
+      - run: node test/coord.test.js
 
   data:
     runs-on: ubuntu-latest
@@ -82,6 +83,9 @@ jobs:
           gh release download -R OffARO/sota-az -D az -p 'w*.geojson.gz' -p 'k*.geojson.gz' && ls az | wc -l
       - name: Build summits file
         run: go run ./cmd/buildsota -summits summitslist.csv -az az -out data/sota.geojson.gz
+      - name: Work out the n-fer overlap patches
+        timeout-minutes: 30
+        run: go run ./cmd/parkmap -data data -write-regions data/nfer.geojson.gz
       - name: Load everything and print sample lookups
         timeout-minutes: 20
         run: go run ./cmd/parkmap -data data -selftest
