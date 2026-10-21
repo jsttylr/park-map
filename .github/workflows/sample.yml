@@ -1,0 +1,14 @@
+name: sample
+on:
+  push:
+    paths: ['.github/workflows/sample.yml']
+jobs:
+  sample:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: curl -fsSL -o all_parks_ext.csv https://pota.app/all_parks_ext.csv
+      - run: time go run ./cmd/builddata -pota all_parks_ext.csv -only US-ME -out me.geojson.gz -report me.csv && ls -la me.geojson.gz
