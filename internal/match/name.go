@@ -33,7 +33,9 @@ var generic = map[string]bool{
 
 // Tokens returns the normalized words of a name with abbreviations expanded.
 func Tokens(s string) []string {
-	s = strings.ToLower(strings.ReplaceAll(s, "&", " and "))
+	s = strings.ToLower(s)
+	s = strings.ReplaceAll(s, "c&d", "chesapeake and delaware")
+	s = strings.ReplaceAll(s, "&", " and ")
 	s = strings.NewReplacer("'", "", "’", "").Replace(s)
 	s = strings.Map(func(r rune) rune {
 		if unicode.IsLetter(r) || unicode.IsDigit(r) {

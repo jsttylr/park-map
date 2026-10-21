@@ -39,6 +39,7 @@ func TestSharesName(t *testing.T) {
 		{"Devil’s River State Trail", "Devils River State Trail", true},
 		{"Wilderness Road State Park", "Wilderness Road State Park", true},
 		{"Lake Park", "Lake Monroe", false},
+		{"Chesapeake and Delaware Canal Conservation Area", "C&D Canal Conservation Area", true},
 		{"Apple Orchard Falls National Recreation Trail", "Appalachian National Scenic Trail", false},
 	}
 	for _, c := range cases {

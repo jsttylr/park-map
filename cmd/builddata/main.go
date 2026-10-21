@@ -299,7 +299,7 @@ func score(f *geojson.Feature, layer string, mp orb.MultiPolygon, p *park) *cand
 			s, key, name = ls, locKey(f), loc
 		}
 	}
-	if s < minMedium {
+	if s < minMedium || isTrail(p.Name) && !isTrail(name) {
 		return nil
 	}
 	c := &candidate{
@@ -445,4 +445,15 @@ func summarize(parks []*park) {
 	}
 	sample("Medium matches", medium)
 	sample("No boundary", none)
+}
+
+// isTrail reports whether a name is a trail's. A trail park is only the trail,
+// so it must not take the outline of the forest or park it runs through.
+func isTrail(name string) bool {
+	for _, w := range match.Tokens(name) {
+		if w == "trail" || w == "trails" {
+			return true
+		}
+	}
+	return false
 }
