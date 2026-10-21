@@ -1,4 +1,5 @@
 name: matchcheck
+# One-off: which parks in the last full build would lose their boundary under the current name rules.
 on:
   push:
     paths: [".github/workflows/matchcheck.yml", "cmd/matchcheck/**"]

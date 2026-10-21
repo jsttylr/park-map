@@ -34,7 +34,7 @@ var generic = map[string]bool{
 // Tokens returns the normalized words of a name with abbreviations expanded.
 func Tokens(s string) []string {
 	s = strings.ToLower(strings.ReplaceAll(s, "&", " and "))
-	s = strings.ReplaceAll(s, "'", "")
+	s = strings.NewReplacer("'", "", "’", "").Replace(s)
 	s = strings.Map(func(r rune) rune {
 		if unicode.IsLetter(r) || unicode.IsDigit(r) {
 			return r
@@ -111,13 +111,16 @@ var weak = map[string]bool{
 	"canal": true, "route": true, "road": true,
 }
 
-// SharesName reports whether two names have a distinctive word in common.
+// SharesName reports whether two names have a distinctive word in common, or
+// the same words apart from generic ones ("New River Trail").
 func SharesName(a, b string) bool {
 	ca, cb := core(Tokens(a)), core(Tokens(b))
+	same := len(ca) > 0 && len(ca) == len(cb)
 	for w := range ca {
 		if cb[w] && !weak[w] {
 			return true
 		}
+		same = same && cb[w]
 	}
-	return false
+	return same
 }
