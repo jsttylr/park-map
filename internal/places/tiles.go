@@ -88,6 +88,23 @@ func (s *Set) Tile(t maptile.Tile) ([]byte, error) {
 	}
 	layers.ProjectToTile(t)
 	layers.Clip(mvt.MapboxGLDefaultExtentBound)
+	for _, l := range layers {
+		// Clipping can leave empty polygons, which the simplifier can't handle.
+		kept := l.Features[:0]
+		for _, f := range l.Features {
+			switch g := f.Geometry.(type) {
+			case orb.Polygon:
+				f.Geometry = clean(orb.MultiPolygon{g})
+			case orb.MultiPolygon:
+				f.Geometry = clean(g)
+			}
+			if mp, ok := f.Geometry.(orb.MultiPolygon); ok && len(mp) == 0 || f.Geometry == nil {
+				continue
+			}
+			kept = append(kept, f)
+		}
+		l.Features = kept
+	}
 	layers.Simplify(simplify.DouglasPeucker(1.0))
 	layers.RemoveEmpty(1.0, 1.0)
 	return mvt.MarshalGzipped(layers)

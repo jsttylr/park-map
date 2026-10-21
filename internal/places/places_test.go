@@ -7,6 +7,7 @@ import (
 
 	"github.com/paulmach/orb"
 	"github.com/paulmach/orb/encoding/mvt"
+	"github.com/paulmach/orb/geojson"
 	"github.com/paulmach/orb/maptile"
 	"github.com/paulmach/orb/planar"
 )
@@ -125,5 +126,24 @@ func TestLongRing(t *testing.T) {
 		if got, want := s.Contains(p), planar.RingContains(r, p); got != want {
 			t.Fatalf("Contains(%v) = %v, want %v", p, got, want)
 		}
+	}
+}
+
+func TestEmptyParts(t *testing.T) {
+	ft := geojson.NewFeature(orb.MultiPolygon{{}, {{{0, 0}, {1, 0}}}, {{{0, 0}, {1, 0}, {1, 1}, {0, 0}}}})
+	ft.Properties = geojson.Properties{"ref": "US-9", "lat": 0.5, "lon": 0.6}
+	p := fromFeature(ft, Park)
+	if p.Shape == nil || len(p.Shape.MP) != 1 {
+		t.Fatalf("shape = %+v", p.Shape)
+	}
+	s := &Set{}
+	s.Add(p)
+	s.PrepareTiles()
+	if _, err := s.Tile(maptile.At(orb.Point{0.5, 0.5}, 8)); err != nil {
+		t.Fatal(err)
+	}
+	empty := geojson.NewFeature(orb.MultiPolygon{{}})
+	if fromFeature(empty, Park).Shape != nil {
+		t.Error("empty outline should become a point")
 	}
 }

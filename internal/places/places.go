@@ -149,9 +149,10 @@ func fromFeature(ft *geojson.Feature, kind Kind) *Place {
 	case orb.Polygon:
 		p.Shape = newShape(orb.MultiPolygon{g})
 	case orb.MultiPolygon:
-		if len(g) > 0 {
-			p.Shape = newShape(g)
-		}
+		p.Shape = newShape(g)
+	}
+	if p.Shape != nil && len(p.Shape.MP) == 0 {
+		p.Shape = nil
 	}
 	return p
 }

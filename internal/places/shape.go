@@ -31,7 +31,27 @@ type ring struct {
 
 const stripEdges = 8 // aim for about this many edges per strip
 
+// clean drops empty polygons and rings too short to enclose anything.
+func clean(mp orb.MultiPolygon) orb.MultiPolygon {
+	out := mp[:0]
+	for _, poly := range mp {
+		var rings orb.Polygon
+		for i, r := range poly {
+			if len(r) >= 4 {
+				rings = append(rings, r)
+			} else if i == 0 {
+				break
+			}
+		}
+		if len(rings) > 0 && len(poly) > 0 && len(poly[0]) >= 4 {
+			out = append(out, rings)
+		}
+	}
+	return out
+}
+
 func newShape(mp orb.MultiPolygon) *Shape {
+	mp = clean(mp)
 	s := &Shape{MP: mp, Bound: mp.Bound()}
 	s.rings = make([][]*ring, len(mp))
 	for i, poly := range mp {
