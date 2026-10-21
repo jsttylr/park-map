@@ -1,0 +1,29 @@
+name: probe
+on:
+  push:
+    paths: ['.github/workflows/probe.yml']
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: POTA
+        run: |
+          curl -sSL -o parks.csv https://pota.app/all_parks_ext.csv; ls -la parks.csv; head -5 parks.csv; echo; grep -c '^"US-\|^"K-' parks.csv || true; cut -c1-6 parks.csv | sort | uniq -c | sort -rn | head -5
+          curl -sSL https://api.pota.app/park/US-0039 | head -c 1500; echo
+      - name: USGS GAP ArcGIS org
+        run: |
+          curl -sSL 'https://services.arcgis.com/v01gqwM5QqNysAAi/arcgis/rest/services?f=json' | python3 -c 'import json,sys; d=json.load(sys.stdin); [print(s["name"], s["type"]) for s in d.get("services",[])]' | grep -i -E 'pad|fee|desig|procl|easem|manager' | head -60
+      - name: Esri living atlas PAD-US
+        run: |
+          curl -sSL 'https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services?f=json' | python3 -c 'import json,sys; d=json.load(sys.stdin); [print(s["name"], s["type"]) for s in d.get("services",[])]' | grep -i -E 'protected|padus' | head -40
+      - name: ScienceBase PAD-US 4.1
+        run: |
+          curl -sSL 'https://www.sciencebase.gov/catalog/items?q=PAD-US%204.1&format=json&max=10&fields=title' | python3 -m json.tool | grep -E '"title"|"id"|"link"' | head -40
+      - name: sota-az
+        run: |
+          curl -sSL https://api.github.com/repos/OffARO/sota-az/releases/latest | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("tag_name")); [print(a["name"], a["size"], a["browser_download_url"]) for a in d.get("assets",[])]' | grep -E '^20|W[0-9]|K[HL]|VE|manifest' | head -30
+          curl -sSL https://raw.githubusercontent.com/OffARO/sota-az/main/README.md | head -80
+      - name: SOTA summits
+        run: |
+          curl -sSL -o summits.csv https://storage.sota.org.uk/summitslist.csv || true; ls -la summits.csv; head -4 summits.csv
+          curl -sSL -o s2.csv https://www.sotadata.org.uk/summitslist.csv || true; ls -la s2.csv; head -4 s2.csv
