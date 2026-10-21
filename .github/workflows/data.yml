@@ -6,10 +6,15 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '0 6 2 * *' # monthly
+concurrency:
+  group: build-data
+  cancel-in-progress: true
 jobs:
   us-parks:
     runs-on: ubuntu-latest
     timeout-minutes: 180
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -20,13 +25,42 @@ jobs:
         run: echo "m=$(date +%Y-%m)" >> "$GITHUB_OUTPUT"
       - name: Cached PAD-US download
         id: cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: padus.geojsonl.gz
-          key: padus-4.1-${{ steps.month.outputs.m }}
-      - name: Download PAD-US 4.1 from the USGS web service
+          key: padus-4.1-v2-${{ steps.month.outputs.m }}
+      # Preferred source: the official PAD-US geodatabase zip, uploaded by hand to a
+      # "padus-4.1" release (ScienceBase puts it behind a captcha).
+      - name: PAD-US from the release file
+        id: release
         if: steps.cache.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release download padus-4.1 -R "$GITHUB_REPOSITORY" -p '*.zip' -O padus.zip; then echo "no release file"; exit 0; fi
+          sudo apt-get update -qq && sudo apt-get install -y -qq gdal-bin > /dev/null
+          unzip -q padus.zip -d padus && rm padus.zip
+          gdb=$(find padus -maxdepth 3 -name '*.gdb' -type d | head -1)
+          ogrinfo -ro -q "$gdb" | tee layers.txt
+          : > padus.geojsonl
+          for kind in Fee Designation Proclamation; do
+            layer=$(grep -oE "PADUS[0-9_]*${kind}\b" layers.txt | head -1)
+            echo "$kind -> $layer"
+            ogr2ogr -f GeoJSONSeq -t_srs EPSG:4326 -simplify 5 -nlt MULTIPOLYGON -skipfailures -lco COORDINATE_PRECISION=5 \
+              -sql "SELECT Unit_Nm, Loc_Nm, Mang_Name, Des_Tp, State_Nm, '$kind' AS FeatClass FROM $layer" /vsistdout/ "$gdb" >> padus.geojsonl
+          done
+          rm -rf padus
+          gzip padus.geojsonl && ls -la padus.geojsonl.gz
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+      - name: PAD-US from the USGS web service (fallback)
+        if: steps.cache.outputs.cache-hit != 'true' && steps.release.outputs.ok != 'true'
         run: go run ./cmd/fetchpadus -out padus.geojsonl.gz
+      - name: Save PAD-US cache
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: padus.geojsonl.gz
+          key: padus-4.1-v2-${{ steps.month.outputs.m }}
       - name: Download POTA park list
         run: curl -fsSL -o all_parks_ext.csv https://pota.app/all_parks_ext.csv && wc -l all_parks_ext.csv
       - name: Match parks to boundaries
