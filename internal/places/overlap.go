@@ -33,6 +33,7 @@ func (s *Set) ComputeOverlaps() {
 	t := time.Now()
 	pairs := s.findPairs()
 	log.Printf("overlaps: %d overlapping pairs found in %v", len(pairs), time.Since(t).Round(time.Millisecond))
+	defer func() { log.Printf("overlaps: n-fer counts done in %v", time.Since(t).Round(time.Millisecond)) }()
 	nb := make([]map[int]bool, len(s.Places))
 	for _, pr := range pairs {
 		for _, x := range [][2]int{{pr.a, pr.b}, {pr.b, pr.a}} {
@@ -102,8 +103,22 @@ func (s *Set) findPairs() []pair {
 		if a.Shape == nil {
 			return
 		}
+		start := time.Now()
 		var mine []pair
-		for _, b := range s.Within(a.Shape.Bound) {
+		cands := s.Within(a.Shape.Bound)
+		defer func() {
+			if d := time.Since(start); d > 2*time.Second {
+				verts := 0
+				for _, poly := range a.Shape.MP {
+					for _, r := range poly {
+						verts += len(r)
+					}
+				}
+				log.Printf("overlaps: slow %s %s %q: %v, %d parts, %d points, %d nearby, %d overlaps",
+					a.Kind, a.Ref, a.Name, d.Round(time.Millisecond), len(a.Shape.MP), verts, len(cands), len(mine))
+			}
+		}()
+		for _, b := range cands {
 			if b.ID <= a.ID || b.Shape == nil {
 				continue
 			}

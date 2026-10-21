@@ -13,7 +13,14 @@ type Shape struct {
 	MP    orb.MultiPolygon
 	Bound orb.Bound
 	rings [][]*ring // per polygon: outer ring first, then holes
+
+	// For shapes made of many parcels, which polygons reach each grid cell.
+	cells        [][]int32
+	nx, ny       int
+	cellW, cellH float64
 }
+
+const gridSide = 64 // grid cells per side for shapes with many polygons
 
 type ring struct {
 	pts    orb.Ring
@@ -33,7 +40,70 @@ func newShape(mp orb.MultiPolygon) *Shape {
 			s.rings[i][j] = newRing(r)
 		}
 	}
+	if len(mp) > 32 {
+		s.nx, s.ny = gridSide, gridSide
+		s.cellW = (s.Bound.Max[0] - s.Bound.Min[0]) / gridSide
+		s.cellH = (s.Bound.Max[1] - s.Bound.Min[1]) / gridSide
+		if s.cellW > 0 && s.cellH > 0 {
+			s.cells = make([][]int32, gridSide*gridSide)
+			for i, poly := range s.rings {
+				if len(poly) == 0 {
+					continue
+				}
+				b := poly[0].bound
+				x0, y0 := s.cell(b.Min)
+				x1, y1 := s.cell(b.Max)
+				for x := x0; x <= x1; x++ {
+					for y := y0; y <= y1; y++ {
+						s.cells[y*gridSide+x] = append(s.cells[y*gridSide+x], int32(i))
+					}
+				}
+			}
+		}
+	}
 	return s
+}
+
+func (s *Shape) cell(p orb.Point) (int, int) {
+	x := int((p[0] - s.Bound.Min[0]) / s.cellW)
+	y := int((p[1] - s.Bound.Min[1]) / s.cellH)
+	return max(0, min(s.nx-1, x)), max(0, min(s.ny-1, y))
+}
+
+// polys calls fn with the index of every polygon that may reach b, until fn
+// returns false.
+func (s *Shape) polys(b orb.Bound, fn func(i int) bool) {
+	if s.cells == nil {
+		for i := range s.rings {
+			if !fn(i) {
+				return
+			}
+		}
+		return
+	}
+	x0, y0 := s.cell(b.Min)
+	x1, y1 := s.cell(b.Max)
+	if x0 == x1 && y0 == y1 {
+		for _, i := range s.cells[y0*s.nx+x0] {
+			if !fn(int(i)) {
+				return
+			}
+		}
+		return
+	}
+	seen := map[int32]bool{}
+	for x := x0; x <= x1; x++ {
+		for y := y0; y <= y1; y++ {
+			for _, i := range s.cells[y*s.nx+x] {
+				if !seen[i] {
+					seen[i] = true
+					if !fn(int(i)) {
+						return
+					}
+				}
+			}
+		}
+	}
 }
 
 func newRing(pts orb.Ring) *ring {
@@ -97,22 +167,21 @@ func (s *Shape) Contains(p orb.Point) bool {
 	if !s.Bound.Contains(p) {
 		return false
 	}
-	for _, poly := range s.rings {
+	found := false
+	s.polys(orb.Bound{Min: p, Max: p}, func(i int) bool {
+		poly := s.rings[i]
 		if len(poly) == 0 || !poly[0].contains(p) {
-			continue
-		}
-		hole := false
-		for _, h := range poly[1:] {
-			if h.contains(p) {
-				hole = true
-				break
-			}
-		}
-		if !hole {
 			return true
 		}
-	}
-	return false
+		for _, h := range poly[1:] {
+			if h.contains(p) {
+				return true
+			}
+		}
+		found = true
+		return false
+	})
+	return found
 }
 
 // Inside reports whether p is inside the shape and at least margin degrees of
@@ -126,11 +195,8 @@ func (s *Shape) Inside(p orb.Point, margin float64) bool {
 	near := orb.Bound{Min: p, Max: p}.Pad(margin / math.Max(kx, 0.1))
 	m2 := margin * margin
 	ok := true
-	for _, poly := range s.rings {
-		for _, r := range poly {
-			if !ok {
-				return false
-			}
+	s.polys(near, func(i int) bool {
+		for _, r := range s.rings[i] {
 			if !r.bound.Intersects(near) {
 				continue
 			}
@@ -140,7 +206,8 @@ func (s *Shape) Inside(p orb.Point, margin float64) bool {
 				}
 			})
 		}
-	}
+		return ok
+	})
 	return ok
 }
 
