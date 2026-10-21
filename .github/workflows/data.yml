@@ -9,49 +9,18 @@ on:
 jobs:
   us-parks:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Install GDAL
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq gdal-bin > /dev/null && ogr2ogr --version
       - name: Download POTA park list
         run: curl -fsSL -o all_parks_ext.csv https://pota.app/all_parks_ext.csv && wc -l all_parks_ext.csv
-      - name: Download PAD-US 4.1
-        run: |
-          item=652d4fc5d34e44db0e2ee45e
-          curl -fsSL "https://www.sciencebase.gov/catalog/item/$item?format=json" | python3 -c 'import json,sys; [print(json.dumps(f)) for f in json.load(sys.stdin)["files"] if f["name"].endswith(".zip")]' | tee files.json
-          urls=$(python3 -c 'import json; f=json.loads(open("files.json").readline()); print(" ".join(u for u in [f.get("downloadUri"), f.get("url")] if u))')
-          urls="$urls https://www.sciencebase.gov/catalog/file/get/$item?name=PADUS4_1Geodatabase.zip"
-          mkdir -p padus && cd padus
-          for u in $urls; do
-            echo "trying $u"
-            if curl -fsSL -r 0-1 "$u" | grep -q PK; then curl -fsSL -o padus.zip "$u" && break; fi
-          done
-          ls -la padus.zip
-          unzip -q padus.zip && rm padus.zip
-          find . -maxdepth 3 -name '*.gdb' -type d
-          df -h . | tail -1
-      - name: Export PAD-US layers
-        run: |
-          set -o pipefail
-          gdb=$(find padus -maxdepth 3 -name '*.gdb' -type d | head -1)
-          ogrinfo -ro -q "$gdb" | tee layers.txt
-          mkdir -p layers
-          for kind in Fee Designation Proclamation; do
-            layer=$(grep -oE "PADUS[0-9_]*${kind}\b" layers.txt | head -1)
-            [ -z "$layer" ] && { echo "no $kind layer"; continue; }
-            fields=$(ogrinfo -ro -so "$gdb" "$layer" | grep -oE '^[A-Za-z_]+:' | tr -d ':')
-            sel=$(for f in Unit_Nm Loc_Nm Mang_Name d_Mang_Nam Des_Tp d_Des_Tp; do echo "$fields" | grep -qx "$f" && echo -n "$f,"; done)
-            echo "$layer fields: ${sel%,}"
-            ogr2ogr -f GeoJSONSeq -t_srs EPSG:4326 -simplify 5 -nlt MULTIPOLYGON -skipfailures -select "${sel%,}" -lco COORDINATE_PRECISION=6 "layers/$kind.geojsonl" "$gdb" "$layer"
-            ls -la "layers/$kind.geojsonl"
-          done
-          rm -rf padus
-      - name: Match parks to boundaries
-        run: go run ./cmd/builddata -pota all_parks_ext.csv -out us-parks.geojson.gz -report report.csv layers/*.geojsonl
+      - name: Match parks to PAD-US boundaries
+        run: go run ./cmd/builddata -pota all_parks_ext.csv -out us-parks.geojson.gz -report report.csv
+      - name: Output sizes
+        run: ls -la us-parks.geojson.gz report.csv
       - uses: actions/upload-artifact@v4
         with:
           name: us-parks
