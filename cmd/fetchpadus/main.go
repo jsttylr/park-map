@@ -73,7 +73,9 @@ func maxObjectID() (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	var r struct{ Features []struct{ Attributes struct{ M float64 } } }
+	var r struct {
+		Features []struct{ Attributes struct{ M float64 } }
+	}
 	if err := json.Unmarshal(body, &r); err != nil || len(r.Features) == 0 {
 		return 0, fmt.Errorf("max OBJECTID: %v %s", err, body)
 	}
