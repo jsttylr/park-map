@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>park-map</Name>
+  <Repository>ghcr.io/jsttylr/park-map:latest</Repository>
+  <Registry>https://github.com/jsttylr/park-map/pkgs/container/park-map</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/jsttylr/park-map/issues</Support>
+  <Project>https://github.com/jsttylr/park-map</Project>
+  <Overview>Map of US Parks on the Air parks with their real boundaries, plus SOTA summits and their activation zones. Filter to spots where you can activate two, three or more parks at once (n-fers), and click anywhere to see every park and summit at that point. Park outlines come from USGS PAD-US; activation zones are © sotl.as contributors.</Overview>
+  <Category>Tools: Other:</Category>
+  <WebUI>http://[IP]:[PORT:8075]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/jsttylr/park-map/main/unraid/park-map.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/jsttylr/park-map/main/unraid/icon.png</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires/>
+  <Config Name="Web page port" Target="8075" Default="8075" Mode="tcp" Description="Port for the map page." Type="Port" Display="always" Required="true" Mask="false">8075</Config>
+</Container>

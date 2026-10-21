@@ -1,0 +1,9 @@
+# Park Map on a Docker host. Start it with: docker compose up -d
+services:
+  park-map:
+    # "latest" is the newest build from main; use a branch name for a test build.
+    image: ghcr.io/jsttylr/park-map:latest
+    container_name: park-map
+    restart: unless-stopped
+    ports:
+      - "8075:8075"

@@ -97,3 +97,25 @@ func Similarity(a, b string) float64 {
 	}
 	return 0.8*dice(ca, cb) + 0.2*full
 }
+
+// weak words are distinctive enough to keep in a name's core but too common to
+// prove on their own that two names mean the same place ("St. Clair Flats" and
+// "St. Johns Marsh" share only "saint").
+var weak = map[string]bool{
+	"saint": true, "sainte": true, "mount": true, "mountain": true, "fort": true, "point": true,
+	"lake": true, "lakes": true, "river": true, "creek": true, "island": true, "islands": true,
+	"valley": true, "north": true, "south": true, "east": true, "west": true, "upper": true,
+	"lower": true, "new": true, "little": true, "big": true, "great": true, "old": true,
+	"bay": true, "harbor": true, "beach": true, "spring": true, "springs": true, "pond": true,
+}
+
+// SharesName reports whether two names have a distinctive word in common.
+func SharesName(a, b string) bool {
+	ca, cb := core(Tokens(a)), core(Tokens(b))
+	for w := range ca {
+		if cb[w] && !weak[w] {
+			return true
+		}
+	}
+	return false
+}

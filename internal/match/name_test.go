@@ -21,3 +21,22 @@ func TestSimilarity(t *testing.T) {
 		}
 	}
 }
+
+func TestSharesName(t *testing.T) {
+	cases := []struct {
+		a, b string
+		want bool
+	}{
+		{"Bear Creek State Park", "Bear Creek SP", true},
+		{"Radnor Lake State Park", "Radnor Lake", true},
+		{"St. Clair Flats State Wildlife Area", "St. Johns Marsh", false},
+		{"William G. Milliken State Harbor", "Tricentennial State Park And Harbor", false},
+		{"Capitol State Park", "Capital Park", false},
+		{"Lake Monroe State Fishing Lake", "Monroe Lake", true},
+	}
+	for _, c := range cases {
+		if got := SharesName(c.a, c.b); got != c.want {
+			t.Errorf("SharesName(%q, %q) = %v, want %v", c.a, c.b, got, c.want)
+		}
+	}
+}

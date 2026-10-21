@@ -274,8 +274,11 @@ func score(f *geojson.Feature, layer string, mp orb.MultiPolygon, p *park) *cand
 	if unit == "" {
 		return nil
 	}
-	s := match.Similarity(p.Name, unit)
-	if loc := prop(f, "Loc_Nm"); loc != "" {
+	s := 0.0
+	if match.SharesName(p.Name, unit) {
+		s = match.Similarity(p.Name, unit)
+	}
+	if loc := prop(f, "Loc_Nm"); loc != "" && match.SharesName(p.Name, loc) {
 		s = math.Max(s, match.Similarity(p.Name, loc))
 	}
 	if s < minMedium {

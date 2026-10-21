@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Park Map</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M16 3 4 27h24z' fill='%232e7d32'/></svg>">
+<link rel="stylesheet" href="vendor/maplibre-gl.css">
+<script src="vendor/maplibre-gl.js"></script>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1d2330; --muted: #5f6b7a; --line: #d9dee5; --accent: #2e7d32;
+    --n1: #43a047; --n2: #1e88e5; --n3: #8e24aa; --n4: #f4511e; --summit: #8d4b16;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #1b1f27; --fg: #e8ebf0; --muted: #9aa5b4; --line: #343b47; --accent: #66bb6a; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  #map { position: absolute; inset: 0; }
+  .panel { position: absolute; top: 10px; left: 10px; width: 300px; max-width: calc(100vw - 20px); max-height: calc(100vh - 20px); overflow: auto;
+    background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,.18); z-index: 2; }
+  .panel header { display: flex; align-items: center; gap: 8px; padding: 10px 12px; cursor: pointer; user-select: none; }
+  .panel header h1 { font-size: 16px; margin: 0; flex: 1; }
+  .panel header .chev { color: var(--muted); }
+  .panel .body { padding: 0 12px 12px; display: grid; gap: 12px; }
+  .panel.closed .body { display: none; }
+  label { display: flex; align-items: center; gap: 8px; }
+  .row { display: grid; gap: 4px; }
+  .muted { color: var(--muted); font-size: 12px; }
+  input[type=search], select { width: 100%; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .nfer-val { font-weight: 600; }
+  .legend { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; }
+  .legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; background: var(--c); vertical-align: -1px; }
+  .results { display: grid; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .results:empty { display: none; }
+  .results button { text-align: left; padding: 6px 9px; border: 0; border-top: 1px solid var(--line); background: var(--bg); color: var(--fg); font: inherit; cursor: pointer; }
+  .results button:first-child { border-top: 0; }
+  .results button:hover { background: color-mix(in srgb, var(--accent) 12%, var(--bg)); }
+  .maplibregl-popup-content { background: var(--bg); color: var(--fg); padding: 10px 12px; max-width: 300px; }
+  .maplibregl-popup-tip { border-top-color: var(--bg) !important; border-bottom-color: var(--bg) !important; }
+  .pop h3 { margin: 0 0 6px; font-size: 15px; }
+  .pop ul { margin: 0 0 6px; padding-left: 16px; }
+  .pop li { margin: 2px 0; }
+  .pop a { color: var(--accent); }
+  .pop .text { margin-top: 6px; padding: 6px; border-radius: 4px; background: color-mix(in srgb, var(--fg) 7%, var(--bg)); font: 12px ui-monospace, monospace; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div class="panel" id="panel">
+  <header id="toggle"><h1>Park Map</h1><span class="chev" id="chev">▾</span></header>
+  <div class="body">
+    <div class="row">
+      <input type="search" id="q" placeholder="Find a park or summit (US-1234, W7W/KG-001, name)" autocomplete="off">
+      <div class="results" id="results"></div>
+    </div>
+    <div class="row">
+      <span>Show spots that are at least a <span class="nfer-val" id="nferVal">1</span>-fer</span>
+      <input type="range" id="nfer" min="1" max="5" step="1" value="1">
+      <div class="legend">
+        <span style="--c: var(--n1)">1</span><span style="--c: var(--n2)">2</span><span style="--c: var(--n3)">3</span><span style="--c: var(--n4)">4+</span><span style="--c: var(--summit)">Summit</span>
+      </div>
+    </div>
+    <label><input type="checkbox" id="summits" checked> Show SOTA summits</label>
+    <label><input type="checkbox" id="countSummits"> Count summits toward n-fer</label>
+    <label><input type="checkbox" id="pointsOnly" checked> Show parks without an outline</label>
+    <div class="row">
+      <span class="muted">Background map</span>
+      <select id="base">
+        <option value="topo">Topographic (OpenTopoMap)</option>
+        <option value="usgs">USGS topo</option>
+        <option value="streets">Streets (OpenStreetMap)</option>
+        <option value="sat">Satellite (Esri)</option>
+      </select>
+    </div>
+    <div class="muted" id="stats">Loading…</div>
+    <div class="muted">Click anywhere on the map to see every park and summit at that spot.</div>
+  </div>
+</div>
+<script>
+const bases = {
+  topo: { tiles: ["a", "b", "c"].map(s => `https://${s}.tile.opentopomap.org/{z}/{x}/{y}.png`), maxzoom: 17, attribution: "© OpenStreetMap contributors, SRTM | © OpenTopoMap (CC-BY-SA)" },
+  usgs: { tiles: ["https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}"], maxzoom: 16, attribution: "USGS The National Map" },
+  streets: { tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"], maxzoom: 19, attribution: "© OpenStreetMap contributors" },
+  sat: { tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"], maxzoom: 19, attribution: "Tiles © Esri" },
+};
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("parkmap." + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("parkmap." + k, JSON.stringify(v)); } catch {} },
+};
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+const state = {
+  nfer: store.get("nfer", 1), summits: store.get("summits", true), countSummits: store.get("countSummits", false),
+  pointsOnly: store.get("pointsOnly", true), base: store.get("base", "topo"),
+};
+$("nfer").value = state.nfer; $("summits").checked = state.summits; $("countSummits").checked = state.countSummits;
+$("pointsOnly").checked = state.pointsOnly; $("base").value = bases[state.base] ? state.base : "topo";
+if (window.innerWidth < 600) $("panel").classList.add("closed");
+
+const view = store.get("view", { center: [-98.5, 39.5], zoom: 3.6 });
+const map = new maplibregl.Map({
+  container: "map", center: view.center, zoom: view.zoom, hash: true,
+  style: { version: 8, sources: {}, layers: [] },
+});
+map.addControl(new maplibregl.NavigationControl(), "top-right");
+map.addControl(new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true } }), "top-right");
+map.addControl(new maplibregl.ScaleControl({ unit: "imperial" }), "bottom-left");
+
+function colorBy(key) {
+  return ["step", ["get", key], css("--n1"), 2, css("--n2"), 3, css("--n3"), 4, css("--n4")];
+}
+
+map.on("load", () => {
+  setBase(state.base);
+  map.addSource("places", {
+    type: "vector", tiles: [location.origin + "/tiles/{z}/{x}/{y}.pbf"], minzoom: 0, maxzoom: 14,
+    attribution: "Parks: POTA · Outlines: USGS PAD-US · Summits: SOTA · Activation zones © sotl.as contributors",
+  });
+  const summit = css("--summit");
+  map.addLayer({ id: "parks-fill", type: "fill", source: "places", "source-layer": "parks", paint: { "fill-opacity": 0.22 } });
+  map.addLayer({ id: "parks-line", type: "line", source: "places", "source-layer": "parks", paint: { "line-width": 1.3 } });
+  map.addLayer({ id: "zones-fill", type: "fill", source: "places", "source-layer": "zones", paint: { "fill-color": summit, "fill-opacity": 0.3 } });
+  map.addLayer({ id: "zones-line", type: "line", source: "places", "source-layer": "zones", paint: { "line-color": summit, "line-width": 1.6 } });
+  map.addLayer({ id: "park-points", type: "circle", source: "places", "source-layer": "park_points",
+    paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 2.5, 10, 5], "circle-stroke-color": "#fff", "circle-stroke-width": 1 } });
+  map.addLayer({ id: "summit-points", type: "circle", source: "places", "source-layer": "summits",
+    paint: { "circle-color": summit, "circle-radius": ["interpolate", ["linear"], ["zoom"], 5, 2.5, 12, 5], "circle-stroke-color": "#fff", "circle-stroke-width": 1 } });
+  apply();
+});
+
+function setBase(name) {
+  const b = bases[name] || bases.topo;
+  if (map.getLayer("base")) map.removeLayer("base");
+  if (map.getSource("base")) map.removeSource("base");
+  map.addSource("base", { type: "raster", tiles: b.tiles, tileSize: 256, maxzoom: b.maxzoom, attribution: b.attribution });
+  map.addLayer({ id: "base", type: "raster", source: "base" }, map.getLayer("parks-fill") ? "parks-fill" : undefined);
+}
+
+function apply() {
+  if (!map.getLayer("parks-fill")) return;
+  const key = state.countSummits ? "nfer_all" : "nfer";
+  const atLeast = [">=", ["get", key], state.nfer];
+  const color = colorBy(key);
+  for (const id of ["parks-fill", "parks-line"]) map.setFilter(id, atLeast);
+  map.setPaintProperty("parks-fill", "fill-color", color);
+  map.setPaintProperty("parks-line", "line-color", color);
+  map.setPaintProperty("park-points", "circle-color", color);
+  map.setFilter("park-points", state.pointsOnly ? atLeast : ["all", atLeast, ["get", "outline"]]);
+  const summitFilter = state.countSummits ? atLeast : true;
+  for (const id of ["zones-fill", "zones-line", "summit-points"]) {
+    map.setLayoutProperty(id, "visibility", state.summits ? "visible" : "none");
+    map.setFilter(id, summitFilter === true ? null : summitFilter);
+  }
+  $("nferVal").textContent = state.nfer;
+}
+
+for (const id of ["summits", "countSummits", "pointsOnly"]) {
+  $(id).addEventListener("change", e => { state[id] = e.target.checked; store.set(id, state[id]); apply(); });
+}
+$("nfer").addEventListener("input", e => { state.nfer = +e.target.value; store.set("nfer", state.nfer); apply(); });
+$("base").addEventListener("change", e => { state.base = e.target.value; store.set("base", state.base); setBase(state.base); });
+$("toggle").addEventListener("click", () => { $("panel").classList.toggle("closed"); $("chev").textContent = $("panel").classList.contains("closed") ? "▸" : "▾"; });
+map.on("moveend", () => store.set("view", { center: map.getCenter().toArray(), zoom: map.getZoom() }));
+
+function link(p) {
+  return p.kind === "summit"
+    ? `<a href="https://sotl.as/summits/${encodeURIComponent(p.ref)}" target="_blank" rel="noopener">${esc(p.ref)}</a>`
+    : `<a href="https://pota.app/#/park/${encodeURIComponent(p.ref)}" target="_blank" rel="noopener">${esc(p.ref)}</a>`;
+}
+
+async function showAt(lngLat) {
+  const popup = new maplibregl.Popup({ maxWidth: "320px" }).setLngLat(lngLat).setHTML("<div class='pop'>Looking…</div>").addTo(map);
+  try {
+    const r = await fetch(`/api/at?lat=${lngLat.lat.toFixed(5)}&lon=${lngLat.lng.toFixed(5)}`);
+    const d = await r.json();
+    const parks = d.here.filter(p => p.kind === "park"), summits = d.here.filter(p => p.kind === "summit");
+    const n = parks.length + (state.countSummits ? summits.length : 0);
+    let h = `<div class="pop"><h3>${n ? `${n}-fer here` : "No parks here"}</h3>`;
+    if (d.here.length) h += "<ul>" + d.here.map(p => `<li>${link(p)} ${esc(p.name)}${p.kind === "summit" ? ` <span class="muted">${p.alt_ft} ft, ${p.points} pt</span>` : ""}</li>`).join("") + "</ul>";
+    if (d.near.length) h += `<div class="muted">Nearby, no outline on file:</div><ul>` + d.near.map(p => `<li>${link(p)} ${esc(p.name)} <span class="muted">${p.km.toFixed(1)} km</span></li>`).join("") + "</ul>";
+    h += `<div class="muted">${d.lat.toFixed(5)}, ${d.lon.toFixed(5)}</div><div class="text" title="What a text reply would say">${esc(d.text)}</div></div>`;
+    popup.setHTML(h);
+  } catch (e) {
+    popup.setHTML(`<div class="pop">Lookup failed: ${esc(e.message)}</div>`);
+  }
+}
+map.on("click", e => showAt(e.lngLat));
+for (const id of ["parks-fill", "zones-fill", "park-points", "summit-points"]) {
+  map.on("mouseenter", id, () => map.getCanvas().style.cursor = "pointer");
+  map.on("mouseleave", id, () => map.getCanvas().style.cursor = "");
+}
+
+let searchTimer;
+$("q").addEventListener("input", e => {
+  clearTimeout(searchTimer);
+  const q = e.target.value.trim();
+  if (q.length < 2) { $("results").innerHTML = ""; return; }
+  searchTimer = setTimeout(async () => {
+    const list = await (await fetch(`/api/search?q=${encodeURIComponent(q)}`)).json();
+    $("results").innerHTML = "";
+    for (const p of list) {
+      const b = document.createElement("button");
+      b.innerHTML = `<strong>${esc(p.ref)}</strong> ${esc(p.name)} <span class="muted">${esc(p.loc)}</span>`;
+      b.onclick = () => {
+        $("results").innerHTML = "";
+        if (p.bbox) map.fitBounds([[p.bbox[0], p.bbox[1]], [p.bbox[2], p.bbox[3]]], { padding: 40, maxZoom: 14 });
+        else map.flyTo({ center: [p.lon, p.lat], zoom: 13 });
+        map.once("moveend", () => showAt({ lng: p.lon, lat: p.lat }));
+      };
+      $("results").appendChild(b);
+    }
+    if (!list.length) $("results").innerHTML = "<button disabled>Nothing found</button>";
+  }, 200);
+});
+
+fetch("/api/info").then(r => r.json()).then(d => {
+  const f = n => n.toLocaleString();
+  $("stats").textContent = `${f(d.parks)} parks (${f(d.outlines)} with outlines), ${f(d.summits)} SOTA summits (${f(d.zones)} with activation zones).`;
+}).catch(() => { $("stats").textContent = ""; });
+</script>
+</body>
+</html>
