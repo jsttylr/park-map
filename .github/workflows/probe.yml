@@ -7,11 +7,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: |
-          for q in 'PAD-US 4.1' 'PADUS4_1' 'PAD-US 4.0 Fee' 'Protected Areas Database of the United States'; do
-            echo "=== $q"
-            curl -sS -G 'https://www.arcgis.com/sharing/rest/search' --data-urlencode "q=$q type:\"Feature Service\"" --data-urlencode 'num=25' --data-urlencode 'f=json' | python3 -c '
-          import json,sys
-          for r in json.load(sys.stdin).get("results",[]): print(r["owner"],"|",r["title"],"|",r.get("url"),"|",r.get("access"))'
+          base=https://services.arcgis.com/v01gqwM5QqNysAAi/arcgis/rest/services
+          for s in Manager_Name_PADUS Fee_Managers_PADUS Proclamation_and_Other_Planning_Boundaries_PADUS Protection_Mechanism_Category_PADUS Manager_Type_PADUS; do
+            echo "=== $s"
+            curl -sS "$base/$s/FeatureServer?f=json" | python3 -c 'import json,sys; d=json.load(sys.stdin); print([ (l["id"],l["name"]) for l in d.get("layers",[])], d.get("maxRecordCount"))'
+            curl -sS "$base/$s/FeatureServer/0?f=json" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("name"), d.get("maxRecordCount"), d.get("supportedQueryFormats"), d.get("capabilities")); print([f["name"] for f in d.get("fields",[])])'
+            curl -sS "$base/$s/FeatureServer/0/query?where=1%3D1&returnCountOnly=true&f=json"; echo
+            # Acadia point test with 2 km distance
+            curl -sS "$base/$s/FeatureServer/0/query?geometry=-68.2034,44.31&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&distance=2000&units=esriSRUnit_Meter&outFields=*&returnGeometry=false&f=json" | head -c 1500; echo
           done
-          echo "=== USGS org services"
-          curl -sS 'https://services.arcgis.com/v01gqwM5QqNysAAi/arcgis/rest/services?f=json' | head -c 3000
