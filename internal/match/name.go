@@ -107,6 +107,8 @@ var weak = map[string]bool{
 	"valley": true, "north": true, "south": true, "east": true, "west": true, "upper": true,
 	"lower": true, "new": true, "little": true, "big": true, "great": true, "old": true,
 	"bay": true, "harbor": true, "beach": true, "spring": true, "springs": true, "pond": true,
+	"trail": true, "trails": true, "greenway": true, "parkway": true, "byway": true, "path": true,
+	"canal": true, "route": true, "road": true,
 }
 
 // SharesName reports whether two names have a distinctive word in common.
