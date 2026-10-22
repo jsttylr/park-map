@@ -65,11 +65,13 @@ func TestParseCommand(t *testing.T) {
 	}{
 		{"", Command{Kind: "lookup"}},
 		{"?", Command{Kind: "lookup"}},
-		{"spot 14.062 cw 'qrp now", Command{Kind: "spot", KHz: 14062, Mode: "CW", Comment: "qrp now"}},
+		{"spot 14062 cw 'qrp now", Command{Kind: "spot", KHz: 14062, Mode: "CW", Comment: "qrp now"}},
 		{"s 14285", Command{Kind: "spot", KHz: 14285, Mode: "SSB"}},
-		{"1234 s 7.030", Command{Kind: "spot", KHz: 7030, Mode: "CW"}},
-		{"pota us-1234,US-5678 146.52", Command{Kind: "pota", Refs: []string{"US-1234", "US-5678"}, KHz: 146520, Mode: "FM"}},
-		{"sota W4V/BR-001 7.032 ssb", Command{Kind: "sota", Refs: []string{"W4V/BR-001"}, KHz: 7032, Mode: "SSB"}},
+		{"1234 s 7030", Command{Kind: "spot", KHz: 7030, Mode: "CW"}},
+		{"pota 14074 ft8", Command{Kind: "pota", KHz: 14074, Mode: "FT8"}},
+		{"sota 5357", Command{Kind: "sota", KHz: 5357, Mode: "SSB"}},
+		{"pota us-1234,US-5678 146520", Command{Kind: "pota", Refs: []string{"US-1234", "US-5678"}, KHz: 146520, Mode: "FM"}},
+		{"sota W4V/BR-001 7032 ssb", Command{Kind: "sota", Refs: []string{"W4V/BR-001"}, KHz: 7032, Mode: "SSB"}},
 	}
 	for _, c := range cases {
 		got := ParseCommand(c.in, "1234")
@@ -77,8 +79,13 @@ func TestParseCommand(t *testing.T) {
 			t.Errorf("%q: got %+v, want %+v", c.in, got, c.want)
 		}
 	}
-	if c := ParseCommand("spot banana", ""); c.Err == "" {
-		t.Error("bad frequency accepted")
+	for _, bad := range []string{"spot banana", "spot 14.062", "spot 14602", "spot 1406", "spot 70320", "pota US1234 14062", "sota W4V/BR-01 7032", "pota"} {
+		if c := ParseCommand(bad, ""); c.Err == "" {
+			t.Errorf("%q accepted: %+v", bad, c)
+		}
+	}
+	if c := ParseCommand("spot 14.062", ""); c.Err != "14.062 looks like MHz. Use kHz, e.g. 14062" {
+		t.Errorf("MHz message %q", c.Err)
 	}
 	if c := ParseCommand("hello", ""); c.Kind != "help" {
 		t.Error("unknown word should get help")
@@ -124,9 +131,31 @@ func TestAnswer(t *testing.T) {
 	if got := g.Answer(s, m); !strings.HasPrefix(got, "2-fer: US-0001 Big Forest, US-0002 Wilderness. Summit W4V/BR-001") {
 		t.Errorf("lookup: %q", got)
 	}
-	m.Text = "spot 14.062"
-	if got := g.Answer(s, m); got != "Spotted US-0001 US-0002 14.062 CW. FAILED: W4V/BR-001 (SOTA spotting off). See log." {
-		t.Errorf("spot: %q", got)
+	for _, c := range []struct{ in, want string }{
+		{"spot 14062", "Spotted US-0001 US-0002 14062 kHz CW. SOTA off: W4V/BR-001 not spotted."},
+		{"pota 14062", "Spotted US-0001 US-0002 14062 kHz CW."},
+		{"pota US-9999 7200", "Spotted US-9999 7200 kHz SSB."},
+		{"sota 7032", "SOTA spotting is off, or has no SOTAwatch login, on the settings page. Nothing spotted."},
+	} {
+		m.Text = c.in
+		if got := g.Answer(s, m); got != c.want {
+			t.Errorf("%s: %q", c.in, got)
+		}
+	}
+	s.SOTA = SOTASettings{Enabled: true, User: "w1aw"}
+	for _, c := range []struct{ in, want string }{
+		{"sota 7032", "Spotted W4V/BR-001 7032 kHz CW."},
+		{"spot 7032", "Spotted US-0001 US-0002 W4V/BR-001 7032 kHz CW."},
+	} {
+		m.Text = c.in
+		if got := g.Answer(s, m); got != c.want {
+			t.Errorf("%s: %q", c.in, got)
+		}
+	}
+	m.Lat, m.Lon = 30, -90
+	m.Text = "sota 7032"
+	if got := g.Answer(s, m); got != "No summit at 30.00000,-90.00000. Nothing spotted." {
+		t.Errorf("no summit: %q", got)
 	}
 }
 
@@ -164,8 +193,8 @@ func TestSpots(t *testing.T) {
 	s := g.store.Get()
 	s.Callsign, s.POTA.Enabled, s.POTA.SpotURL, s.TestMode = "W1AW", true, srv.URL+"/pota", false
 	s.SOTA = SOTASettings{Enabled: true, User: "w1aw", Password: "pw", TokenURL: srv.URL + "/token", ClientID: "sotawatch", SpotURL: srv.URL + "/sota"}
-	m := &Message{Text: "spot 7.032 cw hi", Lat: 37.5, Lon: -79.5, HasPos: true}
-	if r := g.Answer(s, m); r != "Spotted US-0001 US-0002 W4V/BR-001 7.032 CW." {
+	m := &Message{Text: "spot 7032 cw hi", Lat: 37.5, Lon: -79.5, HasPos: true}
+	if r := g.Answer(s, m); r != "Spotted US-0001 US-0002 W4V/BR-001 7032 kHz CW." {
 		t.Errorf("reply %q\n%v", r, g.log.Since(0))
 	}
 	if err := g.replyGarmin(srv.URL+"/link", "hello there"); err != nil {

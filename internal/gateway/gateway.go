@@ -209,27 +209,59 @@ func (g *Gateway) Answer(s Settings, m *Message) string {
 	if s.Callsign == "" {
 		return "Set your callsign on the settings page first."
 	}
+	// spot covers every park and summit at the position, pota only parks and
+	// sota only the summit. pota and sota can name references instead.
+	potaOn, sotaOn := s.POTA.Enabled, s.SOTA.Enabled && s.SOTA.User != ""
 	var potaRefs, sotaRefs []string
-	switch c.Kind {
-	case "spot":
+	if len(c.Refs) == 0 {
 		if !m.HasPos {
-			return "No position in the message, so no spot. Use pota/sota with a reference."
+			return "No position, so no spot. Turn on location for messages or name it: pota US-1234 14062"
 		}
 		potaRefs, sotaRefs, _, _ = here(g.set, m.Lat, m.Lon)
+	}
+	at := posText(m.Lat, m.Lon)
+	var off, skipped []string
+	switch c.Kind {
+	case "spot":
 		if len(potaRefs)+len(sotaRefs) == 0 {
-			return "No park or summit at " + posText(m.Lat, m.Lon) + ". Nothing spotted."
+			return "No park or summit at " + at + ". Nothing spotted."
+		}
+		if !potaOn && len(potaRefs) > 0 {
+			skipped = append(skipped, "POTA off: "+strings.Join(potaRefs, " ")+" not spotted.")
+			potaRefs, off = nil, append(off, "POTA")
+		}
+		if !sotaOn && len(sotaRefs) > 0 {
+			skipped = append(skipped, "SOTA off: "+strings.Join(sotaRefs, " ")+" not spotted.")
+			sotaRefs, off = nil, append(off, "SOTA")
+		}
+		if len(potaRefs)+len(sotaRefs) == 0 {
+			return "Nothing spotted: " + strings.Join(off, " and ") + " spotting is off on the settings page."
 		}
 	case "pota":
-		potaRefs = c.Refs
+		if !potaOn {
+			return "POTA spotting is off on the settings page. Nothing spotted."
+		}
+		sotaRefs = nil
+		if len(c.Refs) > 0 {
+			potaRefs = c.Refs
+		} else if len(potaRefs) == 0 {
+			return "No park at " + at + ". Nothing spotted."
+		}
 	case "sota":
-		sotaRefs = c.Refs
+		if !sotaOn {
+			return "SOTA spotting is off, or has no SOTAwatch login, on the settings page. Nothing spotted."
+		}
+		potaRefs = nil
+		if len(c.Refs) > 0 {
+			sotaRefs = c.Refs
+		} else if len(sotaRefs) == 0 {
+			return "No summit at " + at + ". Nothing spotted."
+		}
 	}
 	var ok, bad []string
-	try := func(prog string, enabled bool, refs []string, c Command, post func(Settings, string, Command) error) {
+	try := func(prog string, refs []string, c Command, post func(Settings, string, Command) error) {
 		for _, ref := range refs {
 			switch {
-			case !enabled:
-				bad = append(bad, ref+" ("+prog+" spotting off)")
 			case s.TestMode:
 				g.log.Info("Test mode: "+prog+" spot not sent", "%s %s kHz %s %q as %s", ref, fmtKHz(c.KHz), c.Mode, c.Comment, s.Callsign)
 				ok = append(ok, ref)
@@ -247,22 +279,23 @@ func (g *Gateway) Answer(s Settings, m *Message) string {
 		pc, rest := c, potaRefs[1:]
 		pc.Comment = strings.TrimSpace(fmt.Sprintf("%dfer %s %s", len(potaRefs), strings.Join(rest, " "), c.Comment))
 		before := len(ok)
-		try("POTA", s.POTA.Enabled, potaRefs[:1], pc, g.spotPOTA)
+		try("POTA", potaRefs[:1], pc, g.spotPOTA)
 		if len(ok) > before {
 			ok = append(ok, rest...)
 		} else {
 			bad = append(bad, rest...)
 		}
 	} else {
-		try("POTA", s.POTA.Enabled, potaRefs, c, g.spotPOTA)
+		try("POTA", potaRefs, c, g.spotPOTA)
 	}
-	try("SOTA", s.SOTA.Enabled && s.SOTA.User != "", sotaRefs, c, g.spotSOTA)
+	try("SOTA", sotaRefs, c, g.spotSOTA)
 	reply := ""
 	if len(ok) > 0 {
-		reply = "Spotted " + strings.Join(ok, " ") + " " + fmtMHz(c.KHz) + " " + c.Mode + "."
+		reply = "Spotted " + strings.Join(ok, " ") + " " + fmtKHz(c.KHz) + " kHz " + c.Mode + "."
 	}
 	if len(bad) > 0 {
 		reply += " FAILED: " + strings.Join(bad, " ") + ". See log."
 	}
+	reply += " " + strings.Join(skipped, " ")
 	return clip(strings.TrimSpace(reply), 160)
 }

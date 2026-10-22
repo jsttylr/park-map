@@ -54,15 +54,32 @@ Set it up on the settings page (the link at the bottom of the map panel, or `htt
 3. Leave **Test mode** on at first. Replies and spots are written to the log instead of being sent. **Try a message** on the same page runs a command without sending anything.
 4. Turn on POTA and SOTA spotting if you want them. SOTA needs your SOTAwatch login.
 
-Commands (send them from the inReach to the mailbox address):
+Commands (send them from the inReach to the mailbox address). Capitals don't matter. If your PIN isn't in the address you send to, add it anywhere in the message as its own word.
 
 | Message | What it does |
 |---|---|
-| `?` (or an empty message) | Lists the parks and summits at your position, in 160 characters or less |
-| `spot 14.062 cw qrp` | Spots every park and summit you're in. Mode and comment are optional; the mode is guessed from the frequency. A multi-fer goes to POTA as one spot for the first park, with the rest in the comment (`3fer US-5678 US-9012 qrp`) |
-| `pota US-1234,US-5678 14.062 cw` | POTA spot for the parks you name |
-| `sota W4V/BR-001 7.032` | SOTA spot for the summit you name |
-| `help` | Lists the commands |
+| `?` (or an empty message) | Lists the parks and summits at your position, in 160 characters or less. `where`, `here`, `parks` and `lookup` do the same |
+| `? 37.5, -79.5` | Looks up that point instead of your position |
+| `spot 14062 cw qrp` | Spots **everything** at your position: every park to POTA and the summit to SOTA. `s` is short for `spot` |
+| `pota 14062 cw` | Spots only the **parks** at your position, to POTA. `p` is short for `pota` |
+| `sota 7032 cw` | Spots only the **summit** at your position, to SOTA |
+| `pota US-1234,US-5678 14062` | Spots the parks you name instead of using your position (commas, no spaces) |
+| `sota W4V/BR-001 7032` | Spots the summit you name instead of using your position |
+| `help` | Replies with a short command list |
+
+How a spot is read:
+
+- **Frequency is always in kHz** (`14062`, or `14062.5`). Anything outside the US amateur bands is refused, and so is a MHz number like `14.062`, so a typo gets an error back instead of a wrong spot. The bands are 2200 m, 630 m, 160 m through 10 m (60 m as 5330 to 5407 kHz), 6 m, 2 m, 1.25 m and 70 cm.
+- **Mode** is optional: `cw`, `ssb`, `usb`, `lsb`, `fm`, `am`, `ft8`, `ft4`, `data`, `rtty` or `psk`. Left out, it's guessed from the US band plan: CW at the bottom of each band, SSB above it, FM on 2 m and up. Type `ft8` or `ft4` for those, since the guess can't know.
+- Anything after the mode is the **comment**.
+- A reference you name must look like one (`US-1234`, `W4V/BR-001`), so a mistyped one is refused.
+
+What gets sent:
+
+- **POTA multi-fer:** one spot for the first park, with the rest in the comment. `spot 14062 cw qrp` in a 3-fer sends US-1234 with the comment `3fer US-5678 US-9012 qrp`.
+- **SOTA:** one spot for the summit, with your comment.
+- If `spot` finds a park or summit whose program is turned off on the settings page, it spots the rest and the reply says what was skipped (`SOTA off: W4V/BR-001 not spotted.`). `pota` or `sota` with its program turned off replies that it's off and sends nothing.
+- The reply looks like `Spotted US-1234 US-5678 14062 kHz CW.` Anything POTA or SOTA refused shows as `FAILED: ... See log.`, and the log has their full answer.
 
 Messages sent from ordinary email work too, with coordinates typed in the message (`? 37.5, -79.5`). Those replies go out through the SMTP server you set, which is a free way to test before paying for inReach messages.
 

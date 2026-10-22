@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -19,14 +20,23 @@ type Command struct {
 	Err     string
 }
 
-const helpText = "? = parks+summits here. spot 14.062 cw [comment] = spot all here. pota US-1234 14.062 [mode]. sota W4V/BR-001 7.032 [mode]"
+const helpText = "?=what's here. spot 14062 [mode] [note]=all parks+summit here. pota 14062=parks here. sota 7032=summit here. Or name it: pota US-1234 14062"
 
 var modes = map[string]string{
 	"CW": "CW", "SSB": "SSB", "USB": "SSB", "LSB": "SSB", "FM": "FM", "AM": "AM",
 	"FT8": "FT8", "FT4": "FT4", "DATA": "DATA", "DIGI": "DATA", "RTTY": "RTTY", "PSK": "PSK31", "PSK31": "PSK31",
 }
 
+var (
+	potaRefRe = regexp.MustCompile(`^[A-Z0-9]{1,4}-\d{4,5}$`)
+	sotaRefRe = regexp.MustCompile(`^[A-Z0-9]{1,4}/[A-Z0-9]{2}-\d{3}$`)
+)
+
 // ParseCommand reads the typed text. pin, if set, is dropped from the words.
+//
+//	spot <kHz> [mode] [comment]   every park and summit at the position
+//	pota [refs] <kHz> ...         the parks named, or the parks at the position
+//	sota [ref] <kHz> ...          the summit named, or the summit at the position
 func ParseCommand(text, pin string) Command {
 	var words []string
 	for _, w := range strings.Fields(text) {
@@ -48,25 +58,31 @@ func ParseCommand(text, pin string) Command {
 			c.Kind = v
 		}
 		rest := words[1:]
-		if c.Kind != "spot" {
-			if len(rest) == 0 {
-				c.Err = "Give a reference and frequency, e.g. " + v + " " + map[string]string{"pota": "US-1234", "sota": "W4V/BR-001"}[c.Kind] + " 14.062"
-				return c
+		// pota and sota may name references first; without them they use
+		// the position, like spot.
+		if c.Kind != "spot" && len(rest) > 0 && !isNumber(rest[0]) {
+			re, example := potaRefRe, "US-1234"
+			if c.Kind == "sota" {
+				re, example = sotaRefRe, "W4V/BR-001"
 			}
 			for _, r := range strings.Split(rest[0], ",") {
-				if r = strings.ToUpper(strings.TrimSpace(r)); r != "" {
-					c.Refs = append(c.Refs, r)
+				if r = strings.ToUpper(strings.TrimSpace(r)); r == "" {
+					continue
+				} else if !re.MatchString(r) {
+					c.Err = "Can't read reference " + r + ". Use e.g. " + c.Kind + " " + example + " 14062"
+					return c
 				}
+				c.Refs = append(c.Refs, r)
 			}
 			rest = rest[1:]
 		}
 		if len(rest) == 0 {
-			c.Err = "Give a frequency, e.g. 14.062"
+			c.Err = "Give a frequency in kHz, e.g. " + v + " 14062"
 			return c
 		}
-		khz, ok := parseFreq(rest[0])
-		if !ok {
-			c.Err = "Can't read frequency " + rest[0]
+		khz, err := parseFreq(rest[0])
+		if err != "" {
+			c.Err = err
 			return c
 		}
 		c.KHz, rest = khz, rest[1:]
@@ -88,19 +104,35 @@ func ParseCommand(text, pin string) Command {
 	return Command{Kind: "help", Err: "Unknown command."}
 }
 
-// parseFreq reads MHz ("14.062") or kHz ("14062") and returns kHz.
-func parseFreq(s string) (float64, bool) {
-	f, err := strconv.ParseFloat(strings.ReplaceAll(strings.TrimSuffix(strings.ToLower(s), "mhz"), ",", "."), 64)
+func isNumber(s string) bool {
+	_, err := strconv.ParseFloat(s, 64)
+	return err == nil
+}
+
+// bands are the US amateur allocations in kHz. A frequency outside them is
+// almost always a typo, so it is refused rather than spotted.
+var bands = [][2]float64{
+	{135.7, 137.8}, {472, 479}, {1800, 2000}, {3500, 4000}, {5330, 5407}, {7000, 7300},
+	{10100, 10150}, {14000, 14350}, {18068, 18168}, {21000, 21450}, {24890, 24990},
+	{28000, 29700}, {50000, 54000}, {144000, 148000}, {222000, 225000}, {420000, 450000},
+}
+
+// parseFreq reads a frequency in kHz ("14062" or "14062.5"). MHz and
+// anything outside the ham bands are refused with a message saying why.
+func parseFreq(s string) (float64, string) {
+	f, err := strconv.ParseFloat(s, 64)
 	if err != nil || f <= 0 {
-		return 0, false
+		return 0, "Can't read frequency " + s + ". Use kHz, e.g. 14062"
 	}
-	if f < 1000 {
-		f *= 1000
+	if f < 1000 && strings.Contains(s, ".") {
+		return 0, s + " looks like MHz. Use kHz, e.g. " + strconv.FormatFloat(f*1000, 'f', -1, 64)
 	}
-	if f < 1800 || f > 450000 {
-		return 0, false
+	for _, b := range bands {
+		if f >= b[0] && f <= b[1] {
+			return f, ""
+		}
 	}
-	return f, true
+	return 0, s + " kHz is not in a ham band. Use kHz, e.g. 14062"
 }
 
 // guessMode follows the US band plan roughly: the bottom of each band is CW.
