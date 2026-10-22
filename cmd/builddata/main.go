@@ -558,14 +558,16 @@ func writeReport(path string, parks []*park) error {
 	}
 	defer f.Close()
 	w := csv.NewWriter(f)
-	w.Write([]string{"ref", "name", "loc", "match", "boundary_name", "manager", "designation", "class", "score", "contains", "dist_km", "parts"})
+	w.Write([]string{"ref", "name", "loc", "lat", "lon", "match", "boundary_name", "manager", "designation", "class", "score", "contains", "dist_km", "parts"})
 	for _, p := range parks {
-		row := []string{p.Ref, p.Name, p.Loc, p.best.confidence(), "", "", "", "", "", "", "", strconv.Itoa(len(p.geom))}
+		lat := strconv.FormatFloat(p.Pt[1], 'f', 5, 64)
+		lon := strconv.FormatFloat(p.Pt[0], 'f', 5, 64)
+		row := []string{p.Ref, p.Name, p.Loc, lat, lon, p.best.confidence(), "", "", "", "", "", "", "", strconv.Itoa(len(p.geom))}
 		if c := p.best; c != nil {
-			row[4], row[5], row[6], row[7] = c.Unit, c.Manager, c.Designation, c.Layer
-			row[8] = strconv.FormatFloat(c.Score, 'f', 2, 64)
-			row[9] = strconv.FormatBool(c.Contains)
-			row[10] = strconv.FormatFloat(c.DistKm, 'f', 2, 64)
+			row[6], row[7], row[8], row[9] = c.Unit, c.Manager, c.Designation, c.Layer
+			row[10] = strconv.FormatFloat(c.Score, 'f', 2, 64)
+			row[11] = strconv.FormatBool(c.Contains)
+			row[12] = strconv.FormatFloat(c.DistKm, 'f', 2, 64)
 		}
 		w.Write(row)
 	}
