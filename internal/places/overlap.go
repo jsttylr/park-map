@@ -28,7 +28,8 @@ type pair struct {
 
 // ComputeOverlaps finds which outlines overlap and the n-fer count for every
 // place: the most places you can stand in at once somewhere inside it. It
-// samples points, so slivers smaller than the sample spacing can be missed.
+// samples points first and cuts the outlines against each other only when
+// the samples find nothing.
 func (s *Set) ComputeOverlaps() {
 	t := time.Now()
 	pairs := s.findPairs()
@@ -94,7 +95,8 @@ func (s *Set) ComputeOverlaps() {
 func (s *Set) findPairs() []pair {
 	var mu sync.Mutex
 	var pairs []pair
-	var done atomic.Int64
+	var done, exact atomic.Int64
+	defer func() { log.Printf("overlaps: %d pairs checked exactly", exact.Load()) }()
 	parallel(len(s.Places), func(i int) {
 		if n := done.Add(1); n%5000 == 0 {
 			log.Printf("overlaps: checked %d of %d places", n, len(s.Places))
@@ -141,6 +143,16 @@ func (s *Set) findPairs() []pair {
 					if a.Shape.Inside(pt, edgeMargin) && b.Shape.Inside(pt, edgeMargin) {
 						pts = append(pts, pt)
 					}
+				}
+			}
+			// The grid can step right over a thin outline, like a trail
+			// corridor a few hundred meters wide crossing a forest, so when
+			// it finds nothing the outlines are cut against each other.
+			if len(pts) == 0 {
+				exact.Add(1)
+				for _, poly := range intersect(a.Shape.MP, b.Shape) {
+					piece := &Place{Shape: newShape(orb.MultiPolygon{poly})}
+					pts = append(pts, piece.inner())
 				}
 			}
 			if len(pts) > 0 {

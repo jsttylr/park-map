@@ -213,3 +213,16 @@ func TestRegions(t *testing.T) {
 		t.Fatalf("reload: %d patches, %v", len(s.Regions.Places), err)
 	}
 }
+
+// A thin diagonal trail crossing a forest falls between the sample points, so
+// the overlap has to be found by cutting the outlines.
+func TestThinOverlap(t *testing.T) {
+	s := &Set{}
+	s.Add(&Place{Ref: "US-0001", Name: "Forest", Shape: box(0, 0, 10, 10)})
+	trail := orb.MultiPolygon{{{{0.35, 0}, {0.45, 0}, {10, 9.55}, {10, 9.65}, {0.35, 0}}}}
+	s.Add(&Place{Ref: "US-0002", Name: "Trail", Shape: newShape(trail)})
+	s.ComputeOverlaps()
+	if s.Places[0].NFer != 2 || len(s.Places[0].Overlaps) != 1 {
+		t.Errorf("forest nfer %d, overlaps %v", s.Places[0].NFer, s.Places[0].Overlaps)
+	}
+}
