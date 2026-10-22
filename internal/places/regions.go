@@ -112,6 +112,7 @@ func (s *Set) ComputeRegions() {
 	for _, r := range out {
 		s.Regions.Add(r)
 	}
+	s.nferFromRegions()
 	log.Printf("regions: %d overlap patches in %v", len(out), time.Since(t).Round(time.Millisecond))
 }
 
@@ -312,7 +313,26 @@ func (s *Set) LoadRegions(path string) error {
 		p.Props = nil
 	}
 	s.Regions = r
+	s.nferFromRegions()
 	return nil
+}
+
+// nferFromRegions raises each place's n-fer count to the busiest patch it is
+// part of. ComputeOverlaps counts from test points, which can miss a third
+// place along a trail only 200 ft wide; the patches are cut exactly.
+func (s *Set) nferFromRegions() {
+	byRef := map[string]*Place{}
+	for _, p := range s.Places {
+		byRef[p.Ref] = p
+	}
+	for _, r := range s.Regions.Places {
+		for _, ref := range strings.Fields(r.Ref) {
+			if p := byRef[ref]; p != nil {
+				p.NFer = max(p.NFer, r.NFer)
+				p.NFerAll = max(p.NFerAll, r.NFerAll)
+			}
+		}
+	}
 }
 
 func toInt(v any) (int, error) {

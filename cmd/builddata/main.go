@@ -53,6 +53,7 @@ type candidate struct {
 	Key, Unit, Manager, Designation, Layer string
 	Score, DistKm                          float64
 	Contains                               bool
+	Route                                  bool // a trail drawn along its OpenStreetMap route
 }
 
 func (c *candidate) rank() float64 {
@@ -67,6 +68,8 @@ func (c *candidate) confidence() string {
 	switch {
 	case c == nil:
 		return "none"
+	case c.Route:
+		return "route"
 	case c.Contains && c.Score >= minHigh:
 		return "high"
 	case c.Contains && c.Score >= minMedium, !c.Contains && c.Score >= minNearMed:
@@ -104,6 +107,7 @@ func main() {
 	out := flag.String("out", "us-parks.geojson.gz", "output GeoJSON (gzipped)")
 	report := flag.String("report", "report.csv", "output match report CSV")
 	show := flag.String("show", "", "comma-separated references whose candidates to print")
+	trails := flag.String("trails", "", "trail areas from scripts/buffer_trails.py (GeoJSON lines), used instead of PAD-US for those parks")
 	flag.Parse()
 	layers := flag.Args()
 	if len(layers) == 0 {
@@ -250,6 +254,14 @@ func main() {
 		p.otherGeom = nil
 	}
 
+	if *trails != "" {
+		n, err := useTrails(*trails, parks)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("trails: %d parks drawn along their route", n)
+	}
+
 	fmt.Println("\n== Parks that also took other units their name names")
 	for _, p := range parks {
 		if len(p.combined) > 0 {
@@ -276,6 +288,31 @@ func main() {
 		log.Fatal(err)
 	}
 	summarize(parks)
+}
+
+// useTrails gives each trail park found in OpenStreetMap the area along its
+// route in place of any PAD-US outline: POTA counts a trail as the route and
+// 100 ft either side, not the land around it.
+func useTrails(path string, parks []*park) (int, error) {
+	byRef := map[string]*park{}
+	for _, p := range parks {
+		byRef[p.Ref] = p
+	}
+	n := 0
+	err := eachFeature(path, func(f *geojson.Feature, mp orb.MultiPolygon) {
+		p := byRef[prop(f, "ref")]
+		if p == nil {
+			return
+		}
+		score, _ := f.Properties["score"].(float64)
+		p.geom = mp
+		p.best = &candidate{
+			Key: "osm:" + prop(f, "osm"), Unit: prop(f, "osm_name"), Manager: "OSM",
+			Designation: "TRAIL", Layer: "route", Score: score, Contains: true, Route: true,
+		}
+		n++
+	})
+	return n, err
 }
 
 func readPOTA(path, prefix string) ([]*park, error) {
@@ -478,7 +515,7 @@ func score(f *geojson.Feature, layer string, mp orb.MultiPolygon, p *park) *cand
 			s, key, name = ls, locKey(f), loc
 		}
 	}
-	if s < minMedium || isTrail(p.Name) && !isTrail(name) {
+	if s < minMedium || match.IsTrail(p.Name) && !match.IsTrail(name) {
 		return nil
 	}
 	c := &candidate{
@@ -600,7 +637,7 @@ func summarize(parks []*park) {
 	}
 	n := float64(len(parks))
 	fmt.Printf("\n== Match summary: %d parks\n", len(parks))
-	for _, c := range []string{"high", "medium", "none"} {
+	for _, c := range []string{"route", "high", "medium", "none"} {
 		fmt.Printf("%-7s %6d  %5.1f%%\n", c, byConf[c], 100*float64(byConf[c])/n)
 	}
 	var states []string
@@ -626,15 +663,4 @@ func summarize(parks []*park) {
 	}
 	sample("Medium matches", medium)
 	sample("No boundary", none)
-}
-
-// isTrail reports whether a name is a trail's. A trail park is only the trail,
-// so it must not take the outline of the forest or park it runs through.
-func isTrail(name string) bool {
-	for _, w := range match.Tokens(name) {
-		if w == "trail" || w == "trails" {
-			return true
-		}
-	}
-	return false
 }

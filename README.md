@@ -104,6 +104,7 @@ Leave off `format=text` to get the same answer as JSON. This is the piece an inR
 | Idea and inspiration | [FieldQTH](https://fieldqth.app) by LX1MDA | No code or data used |
 | Park list and locations | [Parks on the Air](https://pota.app) ([all_parks_ext.csv](https://pota.app/all_parks_ext.csv)) | Published by POTA |
 | Park boundaries | U.S. Geological Survey (USGS) Gap Analysis Project, [Protected Areas Database of the United States (PAD-US) 4.1](https://www.usgs.gov/programs/gap-analysis-project/science/pad-us-data-overview), U.S. Geological Survey data release ([ScienceBase](https://www.sciencebase.gov/catalog/item/652d4fc5d34e44db0e2ee45e)) | Public domain |
+| Trail routes | © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, through the [Overpass API](https://overpass-api.de) | [ODbL](https://opendatacommons.org/licenses/odbl/); the trail areas in the image are a derived database under the same license |
 | Summit list | [Summits on the Air](https://www.sota.org.uk) ([summitslist.csv](https://storage.sota.org.uk/summitslist.csv)) | Published by SOTA |
 | Activation zones | [sotl.as](https://sotl.as) and its contributors, published by [OffARO/sota-az](https://github.com/OffARO/sota-az) | Activation zones © sotl.as contributors, free non-commercial use |
 | Map display | [MapLibre GL JS](https://maplibre.org) | BSD-3-Clause |
@@ -113,6 +114,8 @@ Parks on the Air and Summits on the Air are trademarks of their owners. This pro
 
 Boundaries are matched to POTA parks by name and location, so a few will be wrong or missing. Most missing ones are small BLM sites in the west that PAD-US doesn't map as their own parcel. The `report.csv` on the [reports branch](https://github.com/jsttylr/park-map/blob/reports/report.csv) lists every park with how it was matched, refreshed by each build.
 
+Trail parks are drawn as their route plus 100 ft either side, the way POTA defines a trail, using the route of the same name in OpenStreetMap near the park's location. A trail park with no matching route there falls back to its PAD-US outline if it has one.
+
 N-fer areas are the exact overlaps of the boundaries, worked out when the data is built. Two parks that only share a boundary line don't count as overlapping, and overlaps thinner than about 15 m or smaller than about 2,000 square meters are left out.
 
 ## How the data is built
@@ -120,10 +123,11 @@ N-fer areas are the exact overlaps of the boundaries, worked out when the data i
 The `build` workflow on GitHub does it all:
 
 1. Reads PAD-US from the `padus-4.1` release (the USGS download sits behind a captcha, so the file was uploaded there by hand). If that file is missing it pages the USGS web service instead, which takes about half an hour.
-2. `cmd/builddata` matches every active US POTA park to PAD-US boundaries and writes `us-parks.geojson.gz`.
-3. `cmd/buildsota` joins the SOTA summits list with the sotl.as activation zones for the US associations and writes `sota.geojson.gz`.
-4. `cmd/parkmap -selftest` loads both, works out the overlaps and prints sample lookups.
-5. The Docker image is built with the data inside and pushed to `ghcr.io/jsttylr/park-map`.
+2. `cmd/fetchtrails` looks up each trail park's route in OpenStreetMap (cached for the month), and `scripts/buffer_trails.py` widens each route to 100 ft either side.
+3. `cmd/builddata` matches every active US POTA park to PAD-US boundaries, uses the trail areas for trail parks, and writes `us-parks.geojson.gz`.
+4. `cmd/buildsota` joins the SOTA summits list with the sotl.as activation zones for the US associations and writes `sota.geojson.gz`.
+5. `cmd/parkmap -selftest` loads both, works out the overlaps and prints sample lookups.
+6. The Docker image is built with the data inside and pushed to `ghcr.io/jsttylr/park-map`.
 
 ## Disclaimer
 

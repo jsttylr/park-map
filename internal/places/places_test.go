@@ -226,3 +226,18 @@ func TestThinOverlap(t *testing.T) {
 		t.Errorf("forest nfer %d, overlaps %v", s.Places[0].NFer, s.Places[0].Overlaps)
 	}
 }
+
+func TestThinTrailThreeFer(t *testing.T) {
+	s := &Set{}
+	s.Add(&Place{Ref: "US-0001", Name: "Forest", Shape: box(0, 0, 10, 10)})
+	s.Add(&Place{Ref: "US-0002", Name: "Wilderness", Shape: box(5, 0, 10, 10)})
+	trail := orb.MultiPolygon{{{{0.35, 0}, {0.3506, 0}, {10, 9.6494}, {10, 9.65}, {0.35, 0}}}} // about 40 m wide
+	s.Add(&Place{Ref: "US-0003", Name: "Trail", Shape: newShape(trail)})
+	s.ComputeOverlaps()
+	s.ComputeRegions()
+	for _, p := range s.Places {
+		if p.NFer != 3 {
+			t.Errorf("%s nfer %d, want 3", p.Name, p.NFer)
+		}
+	}
+}

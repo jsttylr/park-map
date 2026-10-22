@@ -73,8 +73,34 @@ jobs:
           key: padus-4.1-v2-${{ steps.month.outputs.m }}
       - name: Download POTA park list
         run: curl -fsSL -o all_parks_ext.csv https://pota.app/all_parks_ext.csv && wc -l all_parks_ext.csv
+      - name: Cached trail routes
+        id: trails
+        uses: actions/cache/restore@v4
+        with:
+          path: trails.geojsonl.gz
+          key: trails-v1-${{ hashFiles('cmd/fetchtrails/**') }}-${{ steps.month.outputs.m }}
+      - name: Trail routes from OpenStreetMap
+        id: fetchtrails
+        if: steps.trails.outputs.cache-hit != 'true'
+        continue-on-error: true
+        timeout-minutes: 120
+        run: go run ./cmd/fetchtrails -pota all_parks_ext.csv -out trails.geojsonl.gz
+      - name: Save trail routes cache
+        if: steps.trails.outputs.cache-hit != 'true' && steps.fetchtrails.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: trails.geojsonl.gz
+          key: trails-v1-${{ hashFiles('cmd/fetchtrails/**') }}-${{ steps.month.outputs.m }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Draw trails 100 ft either side of the route
+        run: |
+          if [ -s trails.geojsonl.gz ]; then pip install -q shapely==2.1.1 pyproj==3.7.1 && python3 scripts/buffer_trails.py trails.geojsonl.gz trail-areas.geojsonl.gz; fi
       - name: Match parks to boundaries
-        run: mkdir -p data && go run ./cmd/builddata -pota all_parks_ext.csv -out data/us-parks.geojson.gz -report report.csv -show US-10139,US-4526,US-0171,US-5730 padus.geojsonl.gz
+        run: |
+          T=""; if [ -s trail-areas.geojsonl.gz ]; then T="-trails trail-areas.geojsonl.gz"; fi
+          mkdir -p data && go run ./cmd/builddata -pota all_parks_ext.csv -out data/us-parks.geojson.gz -report report.csv $T -show US-10139,US-4526,US-0171,US-5730 padus.geojsonl.gz
       - name: Download SOTA summits and sotl.as activation zones
         env:
           GH_TOKEN: ${{ github.token }}

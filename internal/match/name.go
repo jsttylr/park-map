@@ -195,3 +195,14 @@ func CoreWithin(a, b string) bool {
 	}
 	return true
 }
+
+// IsTrail reports whether a name is a trail's. A trail park is only the trail,
+// so it must not take the outline of the forest or park it runs through.
+func IsTrail(name string) bool {
+	for _, w := range Tokens(name) {
+		if w == "trail" || w == "trails" {
+			return true
+		}
+	}
+	return false
+}
