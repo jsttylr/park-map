@@ -111,7 +111,7 @@ Leave off `format=text` to get the same answer as JSON. This is the piece an inR
 
 Parks on the Air and Summits on the Air are trademarks of their owners. This project isn't affiliated with or endorsed by POTA, SOTA, sotl.as, FieldQTH or USGS.
 
-Boundaries are matched to POTA parks by name and location, so a few will be wrong or missing. Most missing ones are small BLM sites in the west that PAD-US doesn't map as their own parcel. The `report.csv` from each build lists every park with how it was matched.
+Boundaries are matched to POTA parks by name and location, so a few will be wrong or missing. Most missing ones are small BLM sites in the west that PAD-US doesn't map as their own parcel. The `report.csv` on the [reports branch](https://github.com/jsttylr/park-map/blob/reports/report.csv) lists every park with how it was matched, refreshed by each build.
 
 N-fer areas are the exact overlaps of the boundaries, worked out when the data is built. Two parks that only share a boundary line don't count as overlapping, and overlaps thinner than about 15 m or smaller than about 2,000 square meters are left out.
 
