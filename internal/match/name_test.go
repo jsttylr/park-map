@@ -71,3 +71,12 @@ func TestParts(t *testing.T) {
 		t.Error("SingularKey")
 	}
 }
+
+func TestCoreWithin(t *testing.T) {
+	if !CoreWithin("White River National Wildlife Refuge", "Dale Bumpers White River National Wildlife Refuge") {
+		t.Error("White River")
+	}
+	if CoreWithin("Willamette State Fish Hatchery", "Willamette National Forest") {
+		t.Error("hatchery")
+	}
+}

@@ -44,6 +44,7 @@ type park struct {
 	best           *candidate
 	cands          map[string]*candidate // best candidate per boundary key
 	otherState     int                   // parcels of its unit left out for being in another state
+	otherGeom      orb.MultiPolygon      // those parcels, used only if none are in its own states
 	combined       map[string]bool       // other units its combined name names
 	geom           orb.MultiPolygon
 }
@@ -221,6 +222,7 @@ func main() {
 				if len(st) == 2 && !strings.Contains(p.Loc, "US-"+strings.ToUpper(st)) {
 					otherState++
 					p.otherState++
+					p.otherGeom = append(p.otherGeom, mp...)
 					continue
 				}
 				p.geom = append(p.geom, mp...)
@@ -236,6 +238,16 @@ func main() {
 			log.Fatal(err)
 		}
 		log.Printf("pass 2: %s, %d parcels left out for being in another state", l, otherState)
+	}
+
+	// A park right on a state line can match a unit whose parcels are all
+	// over the line (Copan Lake, Beach Pond); it keeps them rather than
+	// ending up with no boundary.
+	for _, p := range parks {
+		if len(p.geom) == 0 {
+			p.geom = p.otherGeom
+		}
+		p.otherGeom = nil
 	}
 
 	fmt.Println("\n== Parks that also took other units their name names")
@@ -310,7 +322,9 @@ func readPOTA(path, prefix string) ([]*park, error) {
 }
 
 // dominated is how far below the best-named park another park's name score
-// may be and still share that boundary.
+// may be and still share that boundary. A park whose distinctive words are
+// all in the boundary's name shares it regardless ("White River National
+// Wildlife Refuge" and "Dale Bumpers White River National Wildlife Refuge").
 const dominated = 0.25
 
 // choose picks each park's boundary. A boundary another park matches by a
@@ -343,7 +357,7 @@ func choose(parks []*park, show string) {
 			if first == nil {
 				first = c
 			}
-			if c.Score >= top[c.Key]-dominated {
+			if c.Score >= top[c.Key]-dominated || match.CoreWithin(p.Name, c.Unit) {
 				p.best = c
 				break
 			}

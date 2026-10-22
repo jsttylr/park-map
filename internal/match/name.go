@@ -180,3 +180,18 @@ func SingularKey(s string) string {
 	}
 	return strings.Join(t, " ")
 }
+
+// CoreWithin reports whether every distinctive word of a is in b, so b's
+// name fully covers a's ("White River" within "Dale Bumpers White River").
+func CoreWithin(a, b string) bool {
+	ca, cb := core(Tokens(a)), core(Tokens(b))
+	if len(ca) == 0 {
+		return false
+	}
+	for w := range ca {
+		if !cb[w] {
+			return false
+		}
+	}
+	return true
+}
