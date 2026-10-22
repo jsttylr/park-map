@@ -175,7 +175,8 @@ func TestSpots(t *testing.T) {
 	if last != `POST /web/reply/TINY1 ["TINY1","hello there"]` {
 		t.Errorf("garmin post %q\n%v", last, g.log.Since(0))
 	}
-	if !strings.Contains(got[0], `"reference":"US-0001"`) || !strings.Contains(got[0], `"frequency":"7032"`) {
+	if !strings.Contains(got[0], `"reference":"US-0001"`) || !strings.Contains(got[0], `"frequency":"7032"`) ||
+		!strings.Contains(got[0], `"comments":"2fer US-0002 hi"`) || strings.Contains(strings.Join(got, "\n"), `"reference":"US-0002"`) {
 		t.Errorf("pota %q", got[0])
 	}
 	if !strings.Contains(strings.Join(got, "\n"), `"summitCode":"BR-001"`) {

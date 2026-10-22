@@ -59,7 +59,7 @@ Commands (send them from the inReach to the mailbox address):
 | Message | What it does |
 |---|---|
 | `?` (or an empty message) | Lists the parks and summits at your position, in 160 characters or less |
-| `spot 14.062 cw qrp` | Spots every park and summit you're in. Mode and comment are optional; the mode is guessed from the frequency |
+| `spot 14.062 cw qrp` | Spots every park and summit you're in. Mode and comment are optional; the mode is guessed from the frequency. A multi-fer goes to POTA as one spot for the first park, with the rest in the comment (`3fer US-5678 US-9012 qrp`) |
 | `pota US-1234,US-5678 14.062 cw` | POTA spot for the parks you name |
 | `sota W4V/BR-001 7.032` | SOTA spot for the summit you name |
 | `help` | Lists the commands |

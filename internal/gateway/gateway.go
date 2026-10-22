@@ -225,7 +225,7 @@ func (g *Gateway) Answer(s Settings, m *Message) string {
 		sotaRefs = c.Refs
 	}
 	var ok, bad []string
-	try := func(prog string, enabled bool, refs []string, post func(Settings, string, Command) error) {
+	try := func(prog string, enabled bool, refs []string, c Command, post func(Settings, string, Command) error) {
 		for _, ref := range refs {
 			switch {
 			case !enabled:
@@ -240,8 +240,23 @@ func (g *Gateway) Answer(s Settings, m *Message) string {
 			}
 		}
 	}
-	try("POTA", s.POTA.Enabled, potaRefs, g.spotPOTA)
-	try("SOTA", s.SOTA.Enabled && s.SOTA.User != "", sotaRefs, g.spotSOTA)
+	// A multi-fer goes out as one POTA spot for the first park, with the
+	// others named in the comment ("3fer US-0002 US-0003"), the way activators
+	// spot themselves, rather than one spot per park.
+	if len(potaRefs) > 1 {
+		pc, rest := c, potaRefs[1:]
+		pc.Comment = strings.TrimSpace(fmt.Sprintf("%dfer %s %s", len(potaRefs), strings.Join(rest, " "), c.Comment))
+		before := len(ok)
+		try("POTA", s.POTA.Enabled, potaRefs[:1], pc, g.spotPOTA)
+		if len(ok) > before {
+			ok = append(ok, rest...)
+		} else {
+			bad = append(bad, rest...)
+		}
+	} else {
+		try("POTA", s.POTA.Enabled, potaRefs, c, g.spotPOTA)
+	}
+	try("SOTA", s.SOTA.Enabled && s.SOTA.User != "", sotaRefs, c, g.spotSOTA)
 	reply := ""
 	if len(ok) > 0 {
 		reply = "Spotted " + strings.Join(ok, " ") + " " + fmtMHz(c.KHz) + " " + c.Mode + "."
