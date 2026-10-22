@@ -149,8 +149,12 @@ func (s *Set) findPairs() []pair {
 			// corridor a few hundred meters wide crossing a forest, so when
 			// it finds nothing the outlines are cut against each other.
 			if len(pts) == 0 {
+				x, y := touching(a.Shape, b.Shape, ib)
+				if len(x) == 0 {
+					continue
+				}
 				exact.Add(1)
-				for _, poly := range intersect(a.Shape.MP, b.Shape) {
+				for _, poly := range intersect(x, newShape(y)) {
 					piece := &Place{Shape: newShape(orb.MultiPolygon{poly})}
 					pts = append(pts, piece.inner())
 				}
@@ -166,6 +170,50 @@ func (s *Set) findPairs() []pair {
 		}
 	})
 	return pairs
+}
+
+// touching returns the polygons of a and of b inside ib whose boxes meet a
+// polygon of the other, so an exact cut only looks at pieces that can
+// overlap: a few of an archipelago's thousands of islands, not all of them.
+func touching(a, b *Shape, ib orb.Bound) (x, y orb.MultiPolygon) {
+	parts := func(s *Shape) (ids []int) {
+		s.polys(ib, func(i int) bool {
+			if len(s.rings[i]) > 0 && s.rings[i][0].bound.Intersects(ib) {
+				ids = append(ids, i)
+			}
+			return true
+		})
+		return ids
+	}
+	pa, pb := parts(a), parts(b)
+	if len(pa)*len(pb) > 1_000_000 {
+		for _, i := range pa {
+			x = append(x, a.MP[i])
+		}
+		for _, j := range pb {
+			y = append(y, b.MP[j])
+		}
+		return x, y
+	}
+	usedB := map[int]bool{}
+	for _, i := range pa {
+		hit := false
+		for _, j := range pb {
+			if a.rings[i][0].bound.Intersects(b.rings[j][0].bound) {
+				hit = true
+				usedB[j] = true
+			}
+		}
+		if hit {
+			x = append(x, a.MP[i])
+		}
+	}
+	for _, j := range pb {
+		if usedB[j] {
+			y = append(y, b.MP[j])
+		}
+	}
+	return x, y
 }
 
 func parallel(n int, fn func(int)) {
