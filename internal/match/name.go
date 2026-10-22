@@ -127,26 +127,56 @@ func SharesName(a, b string) bool {
 	return same
 }
 
-// NamesPart reports whether a combined park name names the unit as one of its
-// parts: "George Washington and Jefferson National Forests" names "Jefferson
-// National Forest". Every word of the unit's name, including the kind of land,
-// must be in the park's name, and the park's name must say more than the unit's.
-func NamesPart(park, unit string) bool {
-	pt, ut := Tokens(park), Tokens(unit)
-	ps := map[string]bool{}
-	for _, w := range pt {
-		ps[strings.TrimSuffix(w, "s")] = true
+// Parts splits a combined park name into the names of the units it joins:
+// "George Washington & Jefferson National Forest" gives "george washington
+// national forest" and "jefferson national forest" (as Keys, with plurals
+// made singular). The kind of land at the end applies to every part. Names
+// without "and" give nothing.
+func Parts(name string) []string {
+	t := strings.Fields(SingularKey(name))
+	end := len(t)
+	for end > 0 && generic[t[end-1]] && t[end-1] != "and" {
+		end--
 	}
-	pc, uc := core(pt), core(ut)
-	if len(uc) == 0 || len(pc) <= len(uc) {
-		return false
+	suffix := t[end:]
+	if len(suffix) == 0 {
+		return nil
 	}
-	strong := false
-	for _, w := range ut {
-		if !ps[strings.TrimSuffix(w, "s")] {
-			return false
+	var parts [][]string
+	cur := []string{}
+	for _, w := range t[:end] {
+		if w == "and" {
+			parts = append(parts, cur)
+			cur = []string{}
+			continue
 		}
-		strong = strong || uc[w] && !weak[w]
+		cur = append(cur, w)
 	}
-	return strong
+	parts = append(parts, cur)
+	if len(parts) < 2 {
+		return nil
+	}
+	var out []string
+	for _, p := range parts {
+		strong := false
+		for _, w := range p {
+			strong = strong || !generic[w] && !weak[w]
+		}
+		if !strong {
+			return nil
+		}
+		out = append(out, strings.Join(append(append([]string{}, p...), suffix...), " "))
+	}
+	return out
+}
+
+// SingularKey is Key with plural kinds of land made singular ("forests").
+func SingularKey(s string) string {
+	t := Tokens(s)
+	for i, w := range t {
+		if x := strings.TrimSuffix(w, "s"); x != w && generic[x] {
+			t[i] = x
+		}
+	}
+	return strings.Join(t, " ")
 }

@@ -1,6 +1,9 @@
 package match
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestSimilarity(t *testing.T) {
 	cases := []struct {
@@ -49,20 +52,22 @@ func TestSharesName(t *testing.T) {
 	}
 }
 
-func TestNamesPart(t *testing.T) {
+func TestParts(t *testing.T) {
 	for _, c := range []struct {
-		park, unit string
-		want       bool
+		name string
+		want string
 	}{
-		{"George Washington and Jefferson National Forests", "Jefferson National Forest", true},
-		{"George Washington & Jefferson National Forest", "George Washington National Forest", true},
-		{"George Washington and Jefferson National Forests", "Jefferson State Forest", false},
-		{"Jefferson National Forest Wildlife Management Area", "Jefferson National Forest", false},
-		{"Jefferson National Forest", "Jefferson National Forest", false},
-		{"Big Lake and Little Lake State Park", "Big Lake State Park", false},
+		{"George Washington & Jefferson National Forest", "george washington national forest|jefferson national forest"},
+		{"George Washington and Jefferson National Forests", "george washington national forest|jefferson national forest"},
+		{"Jefferson National Forest Wildlife Management Area", ""},
+		{"Booker T. Washington National Monument", ""},
+		{"Big and Little Lake State Park", ""},
 	} {
-		if got := NamesPart(c.park, c.unit); got != c.want {
-			t.Errorf("%q / %q: got %v", c.park, c.unit, got)
+		if got := strings.Join(Parts(c.name), "|"); got != c.want {
+			t.Errorf("%q: got %q", c.name, got)
 		}
+	}
+	if SingularKey("Jefferson National Forests") != "jefferson national forest" {
+		t.Error("SingularKey")
 	}
 }

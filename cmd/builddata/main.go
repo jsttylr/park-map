@@ -120,6 +120,12 @@ func main() {
 	}
 	log.Printf("%d active %s parks", len(parks), *prefix)
 
+	shown := map[string]bool{}
+	for _, r := range strings.Split(*show, ",") {
+		shown[strings.TrimSpace(r)] = true
+	}
+	nearby := map[*park][]string{}
+
 	// Pass 1: score every polygon near each park point.
 	for _, l := range layers {
 		n := 0
@@ -127,9 +133,17 @@ func main() {
 			n++
 			b := mp.Bound().Pad(nearKm / kmPerDeg)
 			for _, p := range ix.within(b) {
+				if shown[p.Ref] {
+					d := 0.0
+					if !planar.MultiPolygonContains(mp, p.Pt) {
+						d = planar.DistanceFrom(mp, p.Pt) * kmPerDeg
+					}
+					nearby[p] = append(nearby[p], fmt.Sprintf("%5.1f km  %s / %s [%s, %s, %s, %s]", d,
+						prop(f, "Unit_Nm"), prop(f, "Loc_Nm"), prop(f, "Mang_Name"), prop(f, "Des_Tp"), prop(f, "FeatClass"), prop(f, "State_Nm")))
+				}
 				c := score(f, l, mp, p)
 				if c == nil {
-					return
+					continue
 				}
 				if p.cands == nil {
 					p.cands = map[string]*candidate{}
@@ -145,17 +159,24 @@ func main() {
 		log.Printf("pass 1: %s, %d features", l, n)
 	}
 
+	for p, lines := range nearby {
+		sort.Strings(lines)
+		fmt.Printf("\n== Everything within %.0f km of %s %s\n", nearKm, p.Ref, p.Name)
+		for _, l := range lines {
+			fmt.Println("  " + l)
+		}
+	}
 	choose(parks, *show)
 
 	// Pass 2: collect every parcel of each chosen unit.
 	otherState := 0
 	want := map[string][]*park{}
-	byWord := map[string][]*park{} // matched parks by each word of their name
+	byPart := map[string][]*park{} // matched parks with combined names, by each unit they name
 	for _, p := range parks {
 		if p.best.confidence() != "none" {
 			want[p.best.Key] = append(want[p.best.Key], p)
-			for _, w := range match.Tokens(p.Name) {
-				byWord[w] = append(byWord[w], p)
+			for _, k := range match.Parts(p.Name) {
+				byPart[k] = append(byPart[k], p)
 			}
 		}
 	}
@@ -163,28 +184,21 @@ func main() {
 		err := eachFeature(l, func(f *geojson.Feature, mp orb.MultiPolygon) {
 			var ps []*park
 			reach := map[*park]float64{}
+			combinedUnit := map[*park]string{}
 			for _, k := range []string{unitKey(f), locKey(f)} {
 				if k != "" {
 					ps = append(ps, want[k]...)
 				}
 			}
 			// A park named for several units ("George Washington and
-			// Jefferson National Forests") also takes the other units it
+			// Jefferson National Forest") also takes the other units it
 			// names, when the same agency manages them.
 			if unit := prop(f, "Unit_Nm"); unit != "" {
-				if t := match.Tokens(unit); len(t) > 0 {
-					for _, p := range byWord[t[0]] {
-						if p.best.Key != unitKey(f) && p.best.Manager == prop(f, "Mang_Name") && p.best.Layer == prop(f, "FeatClass") &&
-							match.NamesPart(p.Name, unit) {
-							ps = append(ps, p)
-							reach[p] = combinedKm
-							if !p.combined[unit] {
-								if p.combined == nil {
-									p.combined = map[string]bool{}
-								}
-								p.combined[unit] = true
-							}
-						}
+				for _, p := range byPart[match.SingularKey(unit)] {
+					if p.best.Key != unitKey(f) && p.best.Manager == prop(f, "Mang_Name") && p.best.Layer == prop(f, "FeatClass") {
+						ps = append(ps, p)
+						reach[p] = combinedKm
+						combinedUnit[p] = unit
 					}
 				}
 			}
@@ -210,6 +224,12 @@ func main() {
 					continue
 				}
 				p.geom = append(p.geom, mp...)
+				if u := combinedUnit[p]; u != "" {
+					if p.combined == nil {
+						p.combined = map[string]bool{}
+					}
+					p.combined[u] = true
+				}
 			}
 		})
 		if err != nil {
@@ -433,6 +453,11 @@ func score(f *geojson.Feature, layer string, mp orb.MultiPolygon, p *park) *cand
 	s, key, name := 0.0, unitKey(f), unit
 	if match.SharesName(p.Name, unit) {
 		s = match.Similarity(p.Name, unit)
+	}
+	for _, part := range match.Parts(p.Name) {
+		if part == match.SingularKey(unit) {
+			s = max(s, 0.95)
+		}
 	}
 	if loc := prop(f, "Loc_Nm"); loc != "" && match.Key(loc) != match.Key(unit) && match.SharesName(p.Name, loc) {
 		if ls := match.Similarity(p.Name, loc); ls > s {
