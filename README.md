@@ -77,7 +77,7 @@ How a spot is read:
 What gets sent:
 
 - **POTA multi-fer:** one spot for the first park, with the rest in the comment. `spot 14062 cw qrp` in a 3-fer sends US-1234 with the comment `3fer US-5678 US-9012 qrp`.
-- **SOTA:** one spot for the summit, with your comment.
+- **SOTA:** one spot for the summit, with your comment. A comment that starts with `test` (`sota 7032 cw test`) is sent as a SOTAwatch TEST spot, which chasers know to ignore. POTA has no test spot type, so a POTA spot is always a real spot; use **Try a message** with test mode on to check one without posting.
 - If `spot` finds a park or summit whose program is turned off on the settings page, it spots the rest and the reply says what was skipped (`SOTA off: W4V/BR-001 not spotted.`). `pota` or `sota` with its program turned off replies that it's off and sends nothing.
 - The reply looks like `Spotted US-1234 US-5678 14062 kHz CW.` Anything POTA or SOTA refused shows as `FAILED: ... See log.`, and the log has their full answer.
 

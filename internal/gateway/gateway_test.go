@@ -211,6 +211,11 @@ func TestSpots(t *testing.T) {
 	if !strings.Contains(strings.Join(got, "\n"), `"summitCode":"BR-001"`) {
 		t.Errorf("sota %v", got)
 	}
+	got = nil
+	g.Answer(s, &Message{Text: "sota W4V/BR-001 7032 test one", HasPos: false})
+	if len(got) == 0 || !strings.Contains(got[len(got)-1], `"type":"TEST"`) {
+		t.Errorf("sota test spot %v", got)
+	}
 }
 
 func TestStoreKeepsPasswords(t *testing.T) {

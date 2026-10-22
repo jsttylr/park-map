@@ -104,9 +104,15 @@ func (g *Gateway) spotSOTA(s Settings, ref string, c Command) error {
 	if err != nil {
 		return fmt.Errorf("SOTA login failed")
 	}
+	// A comment starting with "test" makes it a SOTAwatch TEST spot, which
+	// SOTAwatch marks as a test so chasers know to ignore it.
+	typ := "NORMAL"
+	if w := strings.Fields(strings.ToLower(c.Comment)); len(w) > 0 && w[0] == "test" {
+		typ = "TEST"
+	}
 	body, _ := json.Marshal(map[string]string{
 		"associationCode": assoc, "summitCode": summit, "activatorCallsign": s.Callsign, "callsign": s.Callsign,
-		"frequency": fmtMHz(c.KHz), "mode": strings.ToLower(c.Mode), "comments": c.Comment, "type": "NORMAL",
+		"frequency": fmtMHz(c.KHz), "mode": strings.ToLower(c.Mode), "comments": c.Comment, "type": typ,
 	})
 	req, _ := http.NewRequest("POST", s.SOTA.SpotURL, bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
