@@ -1,12 +1,25 @@
 name: probe-garmin
-# One-off: look at how Garmin's new reply page sends a reply. Uses a made-up message id.
+# One-off: look at how Garmin's new reply page sends a reply.
 on:
-  push:
-    paths: [".github/workflows/probe-garmin.yml"]
+  workflow_dispatch:
+    inputs:
+      ext:
+        description: message id
+        required: true
 jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - run: curl -sSL -A "Mozilla/5.0" -o page.html -w "%{http_code} %{url_effective}\n" "https://messenger.garmin.com/r?extId=AAAAAAAAAAAAAAAAAAAAAA" ; wc -c page.html; sed -e 's/></>\n</g' page.html | head -c 20000
-      - run: grep -oE '(src|href)="[^"]+\.js[^"]*"' page.html | sed -E 's/^(src|href)="//; s/"$//' | sort -u | tee js.txt
-      - run: for u in $(cat js.txt); do case "$u" in http*) url="$u";; //*) url="https:$u";; *) url="https://messenger.garmin.com$u";; esac; echo "=== $url"; curl -sSL -A "Mozilla/5.0" "$url" -o b.js; wc -c b.js; grep -oiE '.{0,160}(reply|extId|sendMessage|/api/|fetch\(|axios|"POST"|method:"post").{0,200}' b.js | head -60; done
+      - name: page
+        env:
+          EXT: ${{ inputs.ext }}
+        run: |
+          echo "::add-mask::$EXT"
+          curl -sSL -A "Mozilla/5.0" -o page.html -w "%{http_code}\n" "https://messenger.garmin.com/r?extId=$EXT"
+          wc -c page.html
+          grep -oE 'src="[^"]+\.js"' page.html | sed -E 's/^src="//; s/"$//' | sort -u | tee js.txt
+          echo "--- page text around reply/message/action"
+          sed -e 's/></>\n</g' page.html | grep -v '^<script src' | grep -oiE '.{0,200}(textarea|<form|<input|button|server|action|maxLength|latitude|location).{0,200}' | head -80
+      - name: chunks
+        run: |
+          for u in $(grep -E 'app/|page' js.txt); do echo "=== $u"; curl -sSL -A "Mozilla/5.0" "https://messenger.garmin.com$u" -o b.js; wc -c b.js; grep -oE '.{0,400}(createServerReference|callServer|findSourceMapURL).{0,400}' b.js | head -20; grep -oiE '.{0,300}(message|reply|tinyUrl).{0,300}' b.js | head -30; done
