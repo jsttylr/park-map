@@ -106,6 +106,11 @@ func TestAllowed(t *testing.T) {
 			t.Errorf("%+v: %v %s", c.m, ok, why)
 		}
 	}
+	s.PIN = ""
+	s.AllowedSenders = []string{"no.reply.inreach@garmin.com"}
+	if ok, _ := s.Allowed(&Message{From: "no.reply.inreach@garmin.com"}); ok {
+		t.Error("Garmin's shared address accepted without a PIN")
+	}
 }
 
 func TestAnswer(t *testing.T) {

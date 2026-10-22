@@ -48,7 +48,7 @@ The container can answer messages from an inReach. It checks a mailbox you set u
 Set it up on the settings page (the link at the bottom of the map panel, or `http://<server>:8075/settings`):
 
 1. Make a mailbox just for this (a spare Gmail with 2-step verification and an app password works) and fill in the IMAP settings. **Test the login** checks them.
-2. Put your callsign in, and add the address your inReach sends from to **Allowed senders**. Messages from anyone else are ignored and logged, so the log shows the address to add. A PIN adds one more check.
+2. Put your callsign in, add `no.reply.inreach@garmin.com` to **Allowed senders**, and set a **PIN**. Every inReach sends from that one Garmin address, so the PIN is what tells your messages from anyone else's, and messages from Garmin's address are refused without one. Put the PIN in the address you send to (with Gmail, save the inReach contact as `yourbox+7373@gmail.com`) or as a word in the message. Messages from anyone else are ignored and logged.
 3. Leave **Test mode** on at first. Replies and spots are written to the log instead of being sent. **Try a message** on the same page runs a command without sending anything.
 4. Turn on POTA and SOTA spotting if you want them. SOTA needs your SOTAwatch login.
 

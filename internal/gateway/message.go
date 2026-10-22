@@ -159,6 +159,11 @@ func (s Settings) Allowed(m *Message) (bool, string) {
 	if !ok {
 		return false, "sender " + m.From + " is not in the allowed senders list"
 	}
+	// Every inReach sends from the same Garmin address, so for those a PIN is
+	// the only thing that tells your messages from anyone else's.
+	if s.PIN == "" && strings.HasSuffix(m.From, "@garmin.com") {
+		return false, "messages from Garmin's shared address need a PIN: set one on the settings page"
+	}
 	if s.PIN != "" && !strings.Contains(m.To, s.PIN) && !hasWord(m.Text, s.PIN) {
 		return false, "message has no PIN"
 	}
