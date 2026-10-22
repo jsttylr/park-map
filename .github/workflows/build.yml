@@ -74,7 +74,7 @@ jobs:
       - name: Download POTA park list
         run: curl -fsSL -o all_parks_ext.csv https://pota.app/all_parks_ext.csv && wc -l all_parks_ext.csv
       - name: Match parks to boundaries
-        run: mkdir -p data && go run ./cmd/builddata -pota all_parks_ext.csv -out data/us-parks.geojson.gz -report report.csv padus.geojsonl.gz
+        run: mkdir -p data && go run ./cmd/builddata -pota all_parks_ext.csv -out data/us-parks.geojson.gz -report report.csv -show US-10139,US-4558,US-9906 padus.geojsonl.gz
       - name: Download SOTA summits and sotl.as activation zones
         env:
           GH_TOKEN: ${{ github.token }}
@@ -88,7 +88,7 @@ jobs:
         run: go run ./cmd/parkmap -data data -write-regions data/nfer.geojson.gz
       - name: Load everything and print sample lookups
         timeout-minutes: 20
-        run: go run ./cmd/parkmap -data data -selftest -explain US-9906,US-9920,US-4556
+        run: go run ./cmd/parkmap -data data -selftest -explain US-9906,US-9920,US-4556,US-10139
       - name: Output sizes
         run: ls -la padus.geojsonl.gz data report.csv
       - uses: actions/upload-artifact@v4

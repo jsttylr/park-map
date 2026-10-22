@@ -41,6 +41,7 @@ type park struct {
 	Ref, Name, Loc string
 	Pt             orb.Point
 	best           *candidate
+	cands          map[string]*candidate // best candidate per boundary key
 	geom           orb.MultiPolygon
 }
 
@@ -98,6 +99,7 @@ func main() {
 	prefix := flag.String("prefix", "US-", "park reference prefix to include")
 	out := flag.String("out", "us-parks.geojson.gz", "output GeoJSON (gzipped)")
 	report := flag.String("report", "report.csv", "output match report CSV")
+	show := flag.String("show", "", "comma-separated references whose candidates to print")
 	flag.Parse()
 	layers := flag.Args()
 	if len(layers) == 0 {
@@ -123,8 +125,14 @@ func main() {
 			b := mp.Bound().Pad(nearKm / kmPerDeg)
 			for _, p := range ix.within(b) {
 				c := score(f, l, mp, p)
-				if c != nil && (p.best == nil || c.rank() > p.best.rank()) {
-					p.best = c
+				if c == nil {
+					return
+				}
+				if p.cands == nil {
+					p.cands = map[string]*candidate{}
+				}
+				if old := p.cands[c.Key]; old == nil || c.rank() > old.rank() {
+					p.cands[c.Key] = c
 				}
 			}
 		})
@@ -133,6 +141,8 @@ func main() {
 		}
 		log.Printf("pass 1: %s, %d features", l, n)
 	}
+
+	choose(parks, *show)
 
 	// Pass 2: collect every parcel of each chosen unit.
 	want := map[string][]*park{}
@@ -215,6 +225,74 @@ func readPOTA(path, prefix string) ([]*park, error) {
 		parks = append(parks, &park{Ref: ref, Name: rec[col["name"]], Loc: rec[col["locationDesc"]], Pt: orb.Point{lon, lat}})
 	}
 	return parks, nil
+}
+
+// dominated is how far below the best-named park another park's name score
+// may be and still share that boundary.
+const dominated = 0.25
+
+// choose picks each park's boundary. A boundary another park matches by a
+// clearly better name belongs to that park, so a park that only shares a word
+// with it falls back to its next candidate, or to no boundary, instead of
+// taking a whole national forest.
+func choose(parks []*park, show string) {
+	top := map[string]float64{}
+	who := map[string]*park{}
+	for _, p := range parks {
+		for k, c := range p.cands {
+			if c.confidence() != "none" && c.Score > top[k] {
+				top[k], who[k] = c.Score, p
+			}
+		}
+	}
+	shown := map[string]bool{}
+	for _, r := range strings.Split(show, ",") {
+		shown[strings.TrimSpace(r)] = true
+	}
+	var displaced []string
+	for _, p := range parks {
+		var cs []*candidate
+		for _, c := range p.cands {
+			cs = append(cs, c)
+		}
+		sort.Slice(cs, func(i, j int) bool { return cs[i].rank() > cs[j].rank() })
+		var first *candidate
+		for _, c := range cs {
+			if first == nil {
+				first = c
+			}
+			if c.Score >= top[c.Key]-dominated {
+				p.best = c
+				break
+			}
+		}
+		if first != nil && p.best != first && first.confidence() != "none" {
+			owner := who[first.Key]
+			to := "no boundary"
+			if p.best != nil {
+				to = p.best.Unit
+			}
+			displaced = append(displaced, fmt.Sprintf("%s %s | gave up %s (%.2f) to %s %s (%.2f), now %s",
+				p.Ref, p.Name, first.Unit, first.Score, owner.Ref, owner.Name, top[first.Key], to))
+		}
+		if shown[p.Ref] {
+			fmt.Printf("\n== Candidates for %s %s (%s, %.5f,%.5f)\n", p.Ref, p.Name, p.Loc, p.Pt[1], p.Pt[0])
+			for _, c := range cs {
+				o := who[c.Key]
+				ref := ""
+				if o != nil {
+					ref = o.Ref
+				}
+				fmt.Printf("  %-6s %.2f contains=%v %.1f km | %s [%s, %s, %s] best name match %s %.2f\n",
+					c.confidence(), c.Score, c.Contains, c.DistKm, c.Unit, c.Manager, c.Designation, c.Layer, ref, top[c.Key])
+			}
+		}
+	}
+	sort.Strings(displaced)
+	fmt.Printf("\n== %d parks gave up a boundary to a park with a better-matching name\n", len(displaced))
+	for _, d := range displaced {
+		fmt.Println(d)
+	}
 }
 
 // eachFeature streams a newline-delimited GeoJSON file, passing polygonal features.
