@@ -1,5 +1,6 @@
 name: probe-garmin
 # One-off: look at how Garmin's new reply page sends a reply.
+# The message id is read from the event file and masked, so it never shows in the log.
 on:
   workflow_dispatch:
     inputs:
@@ -10,16 +11,14 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
+      - name: mask
+        run: echo "::add-mask::$(jq -r .inputs.ext "$GITHUB_EVENT_PATH")"
       - name: page
-        env:
-          EXT: ${{ inputs.ext }}
         run: |
-          echo "::add-mask::$EXT"
-          curl -sSL -A "Mozilla/5.0" -o page.html -w "%{http_code}\n" "https://messenger.garmin.com/r?extId=$EXT"
-          wc -c page.html
-          grep -oE 'src="[^"]+\.js"' page.html | sed -E 's/^src="//; s/"$//' | sort -u | tee js.txt
-          echo "--- page text around reply/message/action"
-          sed -e 's/></>\n</g' page.html | grep -v '^<script src' | grep -oiE '.{0,200}(textarea|<form|<input|button|server|action|maxLength|latitude|location).{0,200}' | head -80
+          curl -sSL -A "Mozilla/5.0" -o page.html -w "%{http_code}\n" "https://messenger.garmin.com/r?extId=$(jq -r .inputs.ext "$GITHUB_EVENT_PATH")"
+          grep -oE 'static/chunks/[A-Za-z0-9_./()\[\]%-]+\.js' page.html | sort -u | tee js.txt
+          echo "--- RSC lines mentioning reply/composer/action"
+          grep -oE '[0-9a-f]+:I\[[0-9]+,\[[^]]*\],\\?"[A-Za-z]*\\?"\]' page.html | head -60
       - name: chunks
         run: |
-          for u in $(grep -E 'app/|page' js.txt); do echo "=== $u"; curl -sSL -A "Mozilla/5.0" "https://messenger.garmin.com$u" -o b.js; wc -c b.js; grep -oE '.{0,400}(createServerReference|callServer|findSourceMapURL).{0,400}' b.js | head -20; grep -oiE '.{0,300}(message|reply|tinyUrl).{0,300}' b.js | head -30; done
+          for u in $(cat js.txt); do curl -sSL -A "Mozilla/5.0" "https://messenger.garmin.com/web/_next/$u" -o b.js; if grep -q createServerReference b.js; then echo "=== $u"; grep -oE '.{0,300}createServerReference\([^)]*\).{0,1500}' b.js | head -20; fi; done
