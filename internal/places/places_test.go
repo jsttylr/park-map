@@ -164,11 +164,27 @@ func TestRegions(t *testing.T) {
 		"US-0001 US-0003":                    {2, 2},
 		"US-0003 US-0004":                    {2, 2},
 		"US-0001 US-0002 US-0003":            {3, 3},
-		"US-0001 US-0002 W0X/AA-001":         {2, 3},
 		"US-0001 US-0002 US-0003 W0X/AA-001": {3, 4},
 	} {
 		if got[ref] != w {
 			t.Errorf("%s: got %v, want %v", ref, got[ref], w)
+		}
+	}
+	// The peak sits wholly inside the forest, wilderness and trail, so it has no
+	// patch of its own with just the forest and wilderness.
+	if _, ok := got["US-0001 US-0002 W0X/AA-001"]; ok {
+		t.Error("patch for a group that is everywhere part of a bigger one")
+	}
+	// Patches don't stack: each spot is painted by exactly one.
+	for _, pt := range []orb.Point{{0.53, 0.525}, {0.3, 0.3}, {0.55, 0.52}, {0.8, 0.52}} {
+		n := 0
+		for _, r := range s.Regions.Places {
+			if r.Shape.Contains(pt) {
+				n++
+			}
+		}
+		if n != 1 {
+			t.Errorf("%v is in %d patches, want 1", pt, n)
 		}
 	}
 	// Next Door only shares an edge with Big Forest, so no patch for them.

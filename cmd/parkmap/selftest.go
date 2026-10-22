@@ -35,10 +35,16 @@ func runSelftest(s *places.Set, explain string) {
 		{"Appalachian Trail at Springer Mountain", orb.Point{-84.1938, 34.6268}},
 		{"Shenandoah, Skyline Drive", orb.Point{-78.4, 38.53}},
 		{"Times Square (nothing)", orb.Point{-73.9855, 40.758}},
+		{"Shenandoah 3-fer (38.73061,-78.32298)", orb.Point{-78.32298, 38.73061}},
 	}
 	for _, sp := range spots {
 		in, near := s.At(sp.pt, 2)
 		fmt.Printf("%-42s %s\n", sp.name, places.Summary(in, near, 160))
+		for _, r := range s.Regions.Places {
+			if r.Shape.Contains(sp.pt) {
+				fmt.Printf("%-42s   patch %s (%d parks, %d with summits)\n", "", r.Ref, r.NFer, r.NFerAll)
+			}
+		}
 	}
 
 	var top []*places.Place

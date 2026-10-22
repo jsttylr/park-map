@@ -48,6 +48,10 @@ func (s *Set) ComputeRegions() {
 		a := s.Places[i]
 		var mine []*Place
 		emit := func(members []*Place, mp orb.MultiPolygon) {
+			mp = s.only(members, mp)
+			if len(mp) == 0 {
+				return
+			}
 			r := &Place{Kind: Region, Shape: newShape(mp)}
 			refs := make([]string, len(members))
 			for k, m := range members {
@@ -111,6 +115,42 @@ func (s *Set) ComputeRegions() {
 	log.Printf("regions: %d overlap patches in %v", len(out), time.Since(t).Round(time.Millisecond))
 }
 
+// only trims an overlap patch to where exactly these members overlap, by
+// cutting away every other place that covers part of it. Patches then never
+// stack: a spot inside three parks is painted once, by the 3-fer patch, not
+// also by the three 2-fer patches beneath it, so its color matches the legend
+// whatever else overlaps nearby.
+func (s *Set) only(members []*Place, area orb.MultiPolygon) (out orb.MultiPolygon) {
+	others := members[0].Overlaps
+	for _, m := range members[1:] {
+		others = common(others, m.Overlaps)
+	}
+	b := area.Bound().Pad(1e-6)
+	var cut []polygol.Geom
+	for _, id := range others {
+		p := s.Places[id]
+		if !p.Shape.Bound.Intersects(b) {
+			continue
+		}
+		if y := clipTo(p.Shape.MP, b); len(y) > 0 {
+			cut = append(cut, toGeom(y))
+		}
+	}
+	if len(cut) == 0 {
+		return area
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			out = area // the clipping library gave up on odd geometry; keep the whole patch
+		}
+	}()
+	g, err := polygol.Difference(toGeom(area), cut...)
+	if err != nil {
+		return area
+	}
+	return fromGeom(g)
+}
+
 // common returns the sorted IDs found in both sorted lists.
 func common(a, b []int) []int {
 	var out []int
@@ -155,6 +195,11 @@ func intersect(area orb.MultiPolygon, shape *Shape) (out orb.MultiPolygon) {
 	if err != nil {
 		return nil
 	}
+	return fromGeom(g)
+}
+
+// fromGeom converts a clipping result back, without slivers.
+func fromGeom(g polygol.Geom) (out orb.MultiPolygon) {
 	for _, poly := range g {
 		p := make(orb.Polygon, len(poly))
 		for i, ring := range poly {
