@@ -1,24 +1,15 @@
 name: probe-garmin
 # One-off: look at how Garmin's new reply page sends a reply.
-# The message id is read from the event file and masked, so it never shows in the log.
 on:
-  workflow_dispatch:
-    inputs:
-      ext:
-        description: message id
-        required: true
+  push:
+    paths: [".github/workflows/probe-garmin.yml"]
 jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: mask
-        run: echo "::add-mask::$(jq -r .inputs.ext "$GITHUB_EVENT_PATH")"
-      - name: page
-        run: |
-          curl -sSL -A "Mozilla/5.0" -o page.html -w "%{http_code}\n" "https://messenger.garmin.com/r?extId=$(jq -r .inputs.ext "$GITHUB_EVENT_PATH")"
-          grep -oE 'static/chunks/[A-Za-z0-9_./()\[\]%-]+\.js' page.html | sort -u | tee js.txt
-          echo "--- RSC lines mentioning reply/composer/action"
-          grep -oE '[0-9a-f]+:I\[[0-9]+,\[[^]]*\],\\?"[A-Za-z]*\\?"\]' page.html | head -60
-      - name: chunks
-        run: |
-          for u in $(cat js.txt); do curl -sSL -A "Mozilla/5.0" "https://messenger.garmin.com/web/_next/$u" -o b.js; if grep -q createServerReference b.js; then echo "=== $u"; grep -oE '.{0,300}createServerReference\([^)]*\).{0,1500}' b.js | head -20; fi; done
+      - run: |
+          for u in "app/(reply)/reply/%5BtinyUrlId%5D/page-49656bd9170129e4.js" 8100-6a83417b40af16a4.js 7367-dd3110c591fd3a0f.js 5947-b267cdbbba004fe4.js; do
+            echo "=== $u"; curl -sSL -A "Mozilla/5.0" "https://messenger.garmin.com/web/_next/static/chunks/$u" -o b.js; wc -c b.js
+            grep -oE '.{0,200}createServerReference\([^)]*\).{0,200}' b.js | head -20
+            grep -oiE '.{0,500}(sendReply|replyAction|tinyUrlId|messageText|ReplyMessage|/api/|fetch\().{0,700}' b.js | head -25
+          done
