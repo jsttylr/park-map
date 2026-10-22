@@ -144,9 +144,19 @@ func TestSpots(t *testing.T) {
 				http.Error(w, "no auth", 401)
 			}
 		case "/link":
-			http.Redirect(w, r, "/textmessage/txtmsg?extId=GUID1&adr=parkmap%40example.com", http.StatusFound)
-		case "/textmessage/txtmsg":
-			io.WriteString(w, `<form action="/TextMessage/TxtMsg" method="post"><input type="hidden" name="MessageId" value="42"><input name="ReplyMessage"></form>`)
+			http.Redirect(w, r, "/r?extId=GUID1", http.StatusFound)
+		case "/r":
+			http.Redirect(w, r, "/web/reply/TINY1", http.StatusFound)
+		case "/web/reply/TINY1":
+			if r.Method == "GET" {
+				io.WriteString(w, `<script src="/web/_next/static/chunks/app/(reply)/reply/%5BtinyUrlId%5D/page-abc123.js" async></script>`)
+			} else if r.Header.Get("Next-Action") != "abcdef0123456789abcdef" {
+				http.Error(w, "wrong action", 404)
+			} else {
+				io.WriteString(w, `0:{"a":"$@1"}`)
+			}
+		case "/web/_next/static/chunks/app/(reply)/reply/[tinyUrlId]/page-abc123.js":
+			io.WriteString(w, `let F=(0,R.createServerReference)("abcdef0123456789abcdef",R.callServer,void 0,R.findSourceMapURL,"sendReplyAction");`)
 		}
 	}))
 	defer srv.Close()
@@ -162,10 +172,8 @@ func TestSpots(t *testing.T) {
 		t.Fatal(err)
 	}
 	last := got[len(got)-1]
-	form, _ := url.ParseQuery(strings.SplitN(last, " ", 3)[2])
-	if !strings.HasPrefix(last, "POST /TextMessage/TxtMsg") || form.Get("ReplyMessage") != "hello there" ||
-		form.Get("Guid") != "GUID1" || form.Get("ReplyAddress") != "parkmap@example.com" || form.Get("MessageId") != "42" {
-		t.Errorf("garmin post %q", last)
+	if last != `POST /web/reply/TINY1 ["TINY1","hello there"]` {
+		t.Errorf("garmin post %q\n%v", last, g.log.Since(0))
 	}
 	if !strings.Contains(got[0], `"reference":"US-0001"`) || !strings.Contains(got[0], `"frequency":"7032"`) {
 		t.Errorf("pota %q", got[0])

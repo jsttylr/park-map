@@ -121,81 +121,94 @@ func (g *Gateway) spotSOTA(s Settings, ref string, c Command) error {
 	return err
 }
 
+// garminActionID is the id Garmin's reply page used for its "send reply"
+// action when this was written. It changes whenever Garmin updates the page,
+// so the gateway reads the current one from the page's scripts first.
+const garminActionID = "6083881b56e00900885da0354bcbdb97cd101354aa"
+
 var (
-	inputRe  = regexp.MustCompile(`(?is)<input[^>]*>`)
-	attrRe   = regexp.MustCompile(`(?is)\b(name|value|type)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)`)
-	actionRe = regexp.MustCompile(`(?is)<form[^>]*\baction\s*=\s*("[^"]*"|'[^']*')`)
+	tinyPathRe  = regexp.MustCompile(`/reply/([A-Za-z0-9_-]+)`)
+	tinyJSONRe  = regexp.MustCompile(`tinyUrlId\\?"\s*:\s*\\?"([A-Za-z0-9_-]+)`)
+	pageChunkRe = regexp.MustCompile(`[^"'\s]*/_next/static/chunks/app/[^"'\s]*reply[^"'\s]*page-[0-9a-f]+\.js`)
+	sendActRe   = regexp.MustCompile(`createServerReference\)\("([0-9a-f]{20,})"[^)]*"sendReplyAction"\)`)
 )
 
-// garminDefaultPost is where Garmin's reply page sends replies.
-const garminDefaultPost = "https://explore.garmin.com/TextMessage/TxtMsg"
-
 // replyGarmin answers an inReach message the way the "reply" page Garmin
-// links in every message does: open the page, then send its form with the
-// reply text filled in. Garmin has no public way to do this, so every step is
-// logged in full.
+// links in every message does. The page (messenger.garmin.com) sends a reply
+// by calling its sendReplyAction with the message's short id and the text, so
+// the gateway opens the page, finds both, and makes the same call. Garmin has
+// no public way to do this, so every step is logged in full.
 func (g *Gateway) replyGarmin(link, text string) error {
-	req, _ := http.NewRequest("GET", link, nil)
-	req.Header.Set("User-Agent", userAgent)
-	resp, err := g.client.Do(req)
+	page, final, err := g.fetch(link)
 	if err != nil {
 		g.log.Error("Garmin reply page: request failed", "%s\n%v", link, err)
 		return err
 	}
-	page, _ := io.ReadAll(io.LimitReader(resp.Body, 512<<10))
-	resp.Body.Close()
-	final := resp.Request.URL
-	form := url.Values{}
-	for _, in := range inputRe.FindAllString(string(page), -1) {
-		var name, value, typ string
-		for _, a := range attrRe.FindAllStringSubmatch(in, -1) {
-			v := strings.Trim(a[2], `"'`)
-			switch strings.ToLower(a[1]) {
-			case "name":
-				name = v
-			case "value":
-				value = v
-			case "type":
-				typ = strings.ToLower(v)
-			}
+	tiny := ""
+	if m := tinyPathRe.FindStringSubmatch(final.Path); m != nil {
+		tiny = m[1]
+	} else if m := tinyJSONRe.FindStringSubmatch(page); m != nil {
+		tiny = m[1]
+	} else {
+		tiny = final.Query().Get("extId")
+	}
+	if tiny == "" {
+		g.log.Error("Garmin reply page: no message id", "opened %s\nlanded on %s\n%s", link, final, clip(page, 4000))
+		return fmt.Errorf("no message id on Garmin's reply page")
+	}
+	action, from := garminActionID, "built in"
+	for _, src := range pageChunkRe.FindAllString(page, -1) {
+		u, err := final.Parse(src)
+		if err != nil {
+			continue
 		}
-		if name != "" && (typ == "hidden" || typ == "") {
-			form.Set(name, htmlUnescape(value))
+		js, _, err := g.fetch(u.String())
+		if err != nil {
+			continue
+		}
+		if m := sendActRe.FindStringSubmatch(js); m != nil {
+			action, from = m[1], u.String()
+			break
 		}
 	}
-	q := final.Query()
-	setIfEmpty := func(k, v string) {
-		if form.Get(k) == "" && v != "" {
-			form.Set(k, v)
-		}
+	post := final.ResolveReference(&url.URL{Path: "/web/reply/" + tiny}).String()
+	g.log.Info("Garmin reply page", "opened %s\nlanded on %s\nmessage id: %s\nsend action: %s (from %s)", link, final, tiny, action, from)
+	if strings.HasPrefix(text, "$") {
+		text = "$" + text // the page's encoding escapes a leading $ this way
 	}
-	setIfEmpty("ReplyAddress", q.Get("adr"))
-	setIfEmpty("Guid", q.Get("extId"))
-	form.Set("ReplyMessage", text)
-	post := garminDefaultPost
-	if m := actionRe.FindStringSubmatch(string(page)); m != nil {
-		if u, err := final.Parse(htmlUnescape(strings.Trim(m[1], `"'`))); err == nil && u.Host != "" {
-			post = u.String()
-		}
+	body, _ := json.Marshal([]string{tiny, text})
+	req, _ := http.NewRequest("POST", post, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "text/plain;charset=UTF-8")
+	req.Header.Set("Accept", "text/x-component")
+	req.Header.Set("Next-Action", action)
+	req.Header.Set("Origin", final.Scheme+"://"+final.Host)
+	req.Header.Set("Referer", post)
+	_, answer, err := g.do("Garmin reply", req, string(body))
+	if err == nil && strings.Contains(answer, `"digest"`) {
+		err = fmt.Errorf("Garmin's page reported an error")
+		g.log.Error("Garmin reply: page reported an error", "%s", clip(answer, 4000))
 	}
-	g.log.Info("Garmin reply page", "opened %s\nlanded on %s (%s)\nform fields found: %s", link, final, resp.Status, strings.Join(keys(form), ", "))
-	req, _ = http.NewRequest("POST", post, strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Referer", final.String())
-	_, _, err = g.do("Garmin reply", req, form.Encode())
 	return err
 }
 
-func keys(v url.Values) []string {
-	var out []string
-	for k := range v {
-		out = append(out, k)
+// fetch GETs a page, following redirects, and returns it with the address
+// it ended on.
+func (g *Gateway) fetch(link string) (string, *url.URL, error) {
+	req, err := http.NewRequest("GET", link, nil)
+	if err != nil {
+		return "", nil, err
 	}
-	return out
-}
-
-func htmlUnescape(s string) string {
-	return strings.NewReplacer("&amp;", "&", "&quot;", `"`, "&#39;", "'", "&lt;", "<", "&gt;", ">").Replace(s)
+	req.Header.Set("User-Agent", userAgent)
+	resp, err := g.client.Do(req)
+	if err != nil {
+		return "", nil, err
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+	if resp.StatusCode >= 300 {
+		return string(b), resp.Request.URL, fmt.Errorf("%s", resp.Status)
+	}
+	return string(b), resp.Request.URL, nil
 }
 
 // replyEmail answers an ordinary email through the SMTP server.
