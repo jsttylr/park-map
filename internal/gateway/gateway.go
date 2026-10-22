@@ -169,6 +169,11 @@ func (g *Gateway) Handle(s Settings, m *Message) string {
 		g.log.Warn("Message ignored", why)
 		return ""
 	}
+	if !m.HasPos && s.MapShare.Name != "" {
+		if lat, lon, _, err := g.mapSharePos(s.MapShare); err == nil {
+			m.Lat, m.Lon, m.HasPos = lat, lon, true
+		}
+	}
 	reply := g.Answer(s, m)
 	if reply == "" {
 		return ""
@@ -196,7 +201,7 @@ func (g *Gateway) Answer(s Settings, m *Message) string {
 		return clip(strings.TrimSpace(c.Err+" "+helpText), 160)
 	case "lookup":
 		if !m.HasPos {
-			return "No position in the message. Turn on location sharing or type lat,lon."
+			return "No position: turn on location for messages, set MapShare on the settings page, or type lat,lon."
 		}
 		_, _, in, near := here(g.set, m.Lat, m.Lon)
 		return places.Summary(in, near, 160)

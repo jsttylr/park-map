@@ -31,6 +31,9 @@ type Settings struct {
 	// for testing); inReach messages are answered through Garmin.
 	SMTP MailServer `json:"smtp"`
 
+	// Where to look for a position when a message comes without one.
+	MapShare MapShare `json:"mapshare"`
+
 	POTA POTASettings `json:"pota"`
 	SOTA SOTASettings `json:"sota"`
 }
@@ -81,6 +84,10 @@ func (s *Settings) Defaults() {
 	if s.SMTP.Port == 0 {
 		s.SMTP.Port = map[string]int{"tls": 465, "starttls": 587, "none": 25}[s.SMTP.Security]
 	}
+	if s.MapShare.MaxAge == 0 {
+		s.MapShare.MaxAge = 60
+	}
+	s.MapShare.Name = strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(strings.TrimSpace(s.MapShare.Name), "https://"), "share.garmin.com/"))
 	if s.POTA.SpotURL == "" {
 		s.POTA.SpotURL = "https://api.pota.app/spot/"
 	}
@@ -101,6 +108,7 @@ func (s Settings) Public() Settings {
 	s.IMAP.HasPass, s.IMAP.Password = s.IMAP.Password != "", ""
 	s.SMTP.HasPass, s.SMTP.Password = s.SMTP.Password != "", ""
 	s.SOTA.HasPass, s.SOTA.Password = s.SOTA.Password != "", ""
+	s.MapShare.HasPass, s.MapShare.Password = s.MapShare.Password != "", ""
 	return s
 }
 
@@ -148,7 +156,8 @@ func (st *Store) Update(n Settings) error {
 	keep(&n.IMAP.Password, st.s.IMAP.Password)
 	keep(&n.SMTP.Password, st.s.SMTP.Password)
 	keep(&n.SOTA.Password, st.s.SOTA.Password)
-	n.IMAP.HasPass, n.SMTP.HasPass, n.SOTA.HasPass = false, false, false
+	keep(&n.MapShare.Password, st.s.MapShare.Password)
+	n.IMAP.HasPass, n.SMTP.HasPass, n.SOTA.HasPass, n.MapShare.HasPass = false, false, false, false
 	n.Defaults()
 	b, err := json.MarshalIndent(n, "", "  ")
 	if err != nil {

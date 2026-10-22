@@ -77,6 +77,16 @@
   </section>
 
   <section>
+    <h2>Position fallback (MapShare)</h2>
+    <p class="muted" style="margin-top:0">When a message arrives without a location, use the newest tracking point from your MapShare page instead. Needs tracking turned on and MapShare enabled at explore.garmin.com.</p>
+    <div class="grid">
+      <label>MapShare name <input name="mapshare.name" placeholder="share.garmin.com/YourName"></label>
+      <label>MapShare password (if set) <input name="mapshare.password" type="password" autocomplete="new-password"></label>
+      <label>Ignore points older than (minutes) <input name="mapshare.max_age_min" type="number" min="5"></label>
+    </div>
+  </section>
+
+  <section>
     <h2>Outgoing mail (SMTP)</h2>
     <p class="muted" style="margin-top:0">Only used to answer messages sent from ordinary email, which is handy for testing for free. inReach messages are answered through Garmin.</p>
     <div class="grid">

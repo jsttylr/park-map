@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jsttylr/park-map/internal/places"
 	"github.com/paulmach/orb"
@@ -193,4 +194,33 @@ func TestStoreKeepsPasswords(t *testing.T) {
 	if st2.Get().IMAP.Password != "secret" {
 		t.Error("not saved")
 	}
+}
+
+func TestMapShareKML(t *testing.T) {
+	now := time.Now().UTC()
+	kml := `<kml><Document><Folder><Placemark><TimeStamp><when>` + now.Add(-20*time.Minute).Format(time.RFC3339) + `</when></TimeStamp><Point><coordinates>-79.1,37.1,100</coordinates></Point></Placemark>` +
+		`<Placemark><TimeStamp><when>` + now.Add(-5*time.Minute).Format(time.RFC3339) + `</when></TimeStamp><Point><coordinates>-79.5,37.5,100</coordinates></Point></Placemark></Folder></Document></kml>`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, p, _ := r.BasicAuth(); p != "pw" {
+			http.Error(w, "no", 401)
+			return
+		}
+		io.WriteString(w, kml)
+	}))
+	defer srv.Close()
+	g := testGateway(t)
+	g.client.Transport = rewrite{srv.URL}
+	lat, lon, _, err := g.mapSharePos(MapShare{Name: "Me", Password: "pw", MaxAge: 60})
+	if err != nil || lat != 37.5 || lon != -79.5 {
+		t.Errorf("%v %v %v %v", lat, lon, err, g.log.Since(0))
+	}
+}
+
+// rewrite sends every request to a test server.
+type rewrite struct{ to string }
+
+func (r rewrite) RoundTrip(req *http.Request) (*http.Response, error) {
+	u, _ := url.Parse(r.to)
+	req.URL.Scheme, req.URL.Host = u.Scheme, u.Host
+	return http.DefaultTransport.RoundTrip(req)
 }
