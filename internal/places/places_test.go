@@ -89,7 +89,7 @@ func TestTile(t *testing.T) {
 		for _, l := range layers {
 			n[l.Name] = len(l.Features)
 		}
-		if z >= ZoneZoom && n["zones"] != 1 || z >= OutlineZoom && n["parks"] < 3 || z < 8 && n["park_points"] < 4 ||
+		if z >= ZoneZoom && n["zones"] != 1 || z >= OutlineZoom && n["parks"] < 3 || z < OutlineZoom && n["park_points"] < 4 ||
 			z >= RegionZoom && n["nfer"] == 0 || (z >= RegionZoom && z < PatchDotZoom) != (n["nfer_points"] > 0) {
 			t.Errorf("zoom %d: %v", z, n)
 		}

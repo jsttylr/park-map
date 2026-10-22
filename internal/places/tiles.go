@@ -97,7 +97,9 @@ func (s *Set) Tile(t maptile.Tile) ([]byte, error) {
 				fc[outlineLayer].Append(f)
 			}
 		}
-		if t.Z >= minPoint && bound.Contains(p.Pt) {
+		// Once outlines are drawn, a park that has one doesn't also get a dot,
+		// which would cover small overlaps.
+		if t.Z >= minPoint && bound.Contains(p.Pt) && (p.Kind != Park || p.Shape == nil || t.Z < minOutline) {
 			f := geojson.NewFeature(p.Pt)
 			f.Properties = props
 			fc[pointLayer].Append(f)

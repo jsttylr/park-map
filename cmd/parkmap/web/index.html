@@ -135,17 +135,17 @@ map.on("load", () => {
   // Parks: one color. Overlap patches on top, colored by how many parks meet there.
   map.addLayer({ id: "parks-fill", type: "fill", source: "places", "source-layer": "parks", paint: { "fill-color": C.park, "fill-opacity": 0.16 } });
   map.addLayer({ id: "parks-line", type: "line", source: "places", "source-layer": "parks", paint: { "line-color": C.park, "line-width": 1.2 } });
+  map.addLayer({ id: "park-points", type: "circle", source: "places", "source-layer": "park_points",
+    paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 2.5, 10, 5], "circle-stroke-color": "#fff", "circle-stroke-width": 1 } });
   map.addLayer({ id: "nfer-fill", type: "fill", source: "places", "source-layer": "nfer", paint: { "fill-opacity": 0.5 } });
   map.addLayer({ id: "nfer-line", type: "line", source: "places", "source-layer": "nfer", paint: { "line-width": 1 } });
+  map.addLayer({ id: "zones-fill", type: "fill", source: "places", "source-layer": "zones", paint: { "fill-color": C.summit, "fill-opacity": 0.45 } });
+  map.addLayer({ id: "zones-line", type: "line", source: "places", "source-layer": "zones", paint: { "line-color": C.summitEdge, "line-width": 2, "line-dasharray": [2, 1.5] } });
+  map.addLayer({ id: "summit-points", type: "circle", source: "places", "source-layer": "summits",
+    paint: { "circle-color": C.summit, "circle-radius": ["interpolate", ["linear"], ["zoom"], 5, 3, 12, 6], "circle-stroke-color": "#3e2723", "circle-stroke-width": 1.5 } });
   // Zoomed out, small overlap patches are too small to see, so each also gets a dot.
   map.addLayer({ id: "nfer-points", type: "circle", source: "places", "source-layer": "nfer_points", maxzoom: 10,
     paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 2.5, 9, 4.5], "circle-stroke-color": "#fff", "circle-stroke-width": 1 } });
-  map.addLayer({ id: "zones-fill", type: "fill", source: "places", "source-layer": "zones", paint: { "fill-color": C.summit, "fill-opacity": 0.45 } });
-  map.addLayer({ id: "zones-line", type: "line", source: "places", "source-layer": "zones", paint: { "line-color": C.summitEdge, "line-width": 2, "line-dasharray": [2, 1.5] } });
-  map.addLayer({ id: "park-points", type: "circle", source: "places", "source-layer": "park_points",
-    paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 2.5, 10, 5], "circle-stroke-color": "#fff", "circle-stroke-width": 1 } });
-  map.addLayer({ id: "summit-points", type: "circle", source: "places", "source-layer": "summits",
-    paint: { "circle-color": C.summit, "circle-radius": ["interpolate", ["linear"], ["zoom"], 5, 3, 12, 6], "circle-stroke-color": "#3e2723", "circle-stroke-width": 1.5 } });
   apply();
 });
 
