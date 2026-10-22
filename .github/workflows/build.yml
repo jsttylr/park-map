@@ -73,24 +73,24 @@ jobs:
           key: padus-4.1-v2-${{ steps.month.outputs.m }}
       - name: Download POTA park list
         run: curl -fsSL -o all_parks_ext.csv https://pota.app/all_parks_ext.csv && wc -l all_parks_ext.csv
+      # Trail lookups are slow the first time, so each run saves what it
+      # found and the next run of the month only looks up the rest.
       - name: Cached trail routes
-        id: trails
         uses: actions/cache/restore@v4
         with:
           path: trails.geojsonl.gz
-          key: trails-v1-${{ hashFiles('cmd/fetchtrails/**') }}-${{ steps.month.outputs.m }}
+          key: trails-v2-${{ steps.month.outputs.m }}-${{ github.run_id }}
+          restore-keys: trails-v2-${{ steps.month.outputs.m }}-
       - name: Trail routes from OpenStreetMap
-        id: fetchtrails
-        if: steps.trails.outputs.cache-hit != 'true'
         continue-on-error: true
-        timeout-minutes: 120
-        run: go run ./cmd/fetchtrails -pota all_parks_ext.csv -out trails.geojsonl.gz
+        timeout-minutes: 110
+        run: go run ./cmd/fetchtrails -pota all_parks_ext.csv -out trails.geojsonl.gz -resume -deadline 90m
       - name: Save trail routes cache
-        if: steps.trails.outputs.cache-hit != 'true' && steps.fetchtrails.outcome == 'success'
+        if: always() && hashFiles('trails.geojsonl.gz') != ''
         uses: actions/cache/save@v4
         with:
           path: trails.geojsonl.gz
-          key: trails-v1-${{ hashFiles('cmd/fetchtrails/**') }}-${{ steps.month.outputs.m }}
+          key: trails-v2-${{ steps.month.outputs.m }}-${{ github.run_id }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'

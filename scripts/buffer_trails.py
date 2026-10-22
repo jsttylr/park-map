@@ -66,6 +66,8 @@ def main(src, dst):
     with gzip.open(src, "rt") as f, gzip.open(dst, "wt") as out:
         for line in f:
             ft = json.loads(line)
+            if not ft.get("geometry"):
+                continue  # a trail park with no route found
             lines = shape(ft["geometry"])
             if lines.is_empty:
                 continue
