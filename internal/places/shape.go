@@ -244,3 +244,6 @@ func segDist2(a, b, p orb.Point, kx float64) float64 {
 	x, y := ax+t*dx, ay+t*dy
 	return x*x + y*y
 }
+
+// NewShape prepares a multipolygon for point tests.
+func NewShape(mp orb.MultiPolygon) *Shape { return newShape(mp) }

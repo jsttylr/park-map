@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"encoding/json"
 	"flag"
@@ -16,6 +17,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/jsttylr/park-map/internal/gateway"
 	"github.com/jsttylr/park-map/internal/places"
 	"github.com/paulmach/orb"
 	"github.com/paulmach/orb/maptile"
@@ -33,6 +35,7 @@ func env(k, def string) string {
 
 func main() {
 	dataDir := flag.String("data", env("PARK_MAP_DATA", "data"), "folder with us-parks.geojson.gz and sota.geojson.gz")
+	configDir := flag.String("config", env("PARK_MAP_CONFIG", "config"), "folder for settings and the gateway log")
 	listen := flag.String("listen", env("PARK_MAP_LISTEN", "0.0.0.0:8075"), "address and port for the web page")
 	health := flag.Bool("healthcheck", false, "check that the server is answering, then exit")
 	selftest := flag.Bool("selftest", false, "load the data, print what was found, then exit")
@@ -95,6 +98,14 @@ func main() {
 	mux.HandleFunc("GET /api/at", srv.at)
 	mux.HandleFunc("GET /api/search", srv.search)
 	mux.HandleFunc("GET /api/info", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, srv.info) })
+	store, err := gateway.OpenStore(*configDir)
+	if err != nil {
+		log.Fatalf("reading settings: %v", err)
+	}
+	gw := gateway.New(set, store, gateway.NewLog(filepath.Join(*configDir, "gateway.log")))
+	settingsPage, _ := webFiles.ReadFile("web/settings.html")
+	gatewayRoutes(mux, gw, os.Getenv("PARK_MAP_ADMIN_PASSWORD"), settingsPage)
+	go gw.Run(context.Background())
 	log.Printf("ready after %v: open http://%s/", time.Since(start).Round(time.Second), *listen)
 	log.Fatal(http.ListenAndServe(*listen, mux))
 }

@@ -19,5 +19,7 @@
   <DonateText/>
   <DonateLink/>
   <Requires/>
+  <Config Name="Config folder" Target="/config" Default="/mnt/user/appdata/park-map" Mode="rw" Description="Satellite gateway settings (mail, SOTA login) and its log." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/park-map</Config>
+  <Config Name="Settings password" Target="PARK_MAP_ADMIN_PASSWORD" Default="" Mode="" Description="Password for the settings page and log (user name can be anything). Leave empty only if your network is private." Type="Variable" Display="always" Required="false" Mask="true"></Config>
   <Config Name="Web page port" Target="8075" Default="8075" Mode="tcp" Description="Port for the map page." Type="Port" Display="always" Required="true" Mask="false">8075</Config>
 </Container>

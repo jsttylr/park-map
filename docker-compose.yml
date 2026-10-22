@@ -7,3 +7,9 @@ services:
     restart: unless-stopped
     ports:
       - "8075:8075"
+    volumes:
+      # Satellite gateway settings (mail and SOTA logins) and its log.
+      - ./config:/config
+    environment:
+      # Password for the settings page; any user name works.
+      PARK_MAP_ADMIN_PASSWORD: "change-me"

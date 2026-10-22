@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Park Map Settings</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M16 3 4 27h24z' fill='%232e7d32'/></svg>">
+<style>
+  :root { --bg: #ffffff; --fg: #1d2330; --muted: #5f6b7a; --line: #d9dee5; --accent: #2e7d32; --card: #f6f7f9;
+    --ok: #2e7d32; --warn: #b26a00; --err: #c62828; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #1b1f27; --fg: #e8ebf0; --muted: #9aa5b4; --line: #343b47; --accent: #66bb6a; --card: #232833;
+      --ok: #66bb6a; --warn: #ffb74d; --err: #ef5350; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
+  h1 { font-size: 20px; margin: 0; }
+  h2 { font-size: 16px; margin: 0 0 8px; }
+  a { color: var(--accent); }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+  label { display: grid; gap: 3px; font-size: 13px; }
+  label.check { display: flex; align-items: center; gap: 8px; }
+  input, select, textarea { width: 100%; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; }
+  input[type=checkbox] { width: auto; accent-color: var(--accent); }
+  textarea { min-height: 60px; resize: vertical; }
+  .muted { color: var(--muted); font-size: 12px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  button { padding: 7px 14px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); font: inherit; cursor: pointer; }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .status { font-size: 13px; }
+  .warnbox { border-left: 4px solid var(--warn); padding: 8px 10px; background: color-mix(in srgb, var(--warn) 10%, var(--bg)); border-radius: 4px; }
+  #log { display: grid; gap: 4px; max-height: 60vh; overflow: auto; font: 12px/1.4 ui-monospace, Menlo, Consolas, monospace; }
+  #log details { border-left: 3px solid var(--line); padding: 3px 8px; background: var(--bg); border-radius: 3px; }
+  #log details.warn { border-color: var(--warn); }
+  #log details.error { border-color: var(--err); }
+  #log summary { cursor: pointer; overflow-wrap: anywhere; }
+  #log pre { margin: 6px 0 2px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .reply { font: 13px ui-monospace, monospace; padding: 8px; border-radius: 6px; background: var(--bg); border: 1px solid var(--line); white-space: pre-wrap; }
+  details.adv summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="bar"><h1>Satellite messenger gateway</h1><span style="flex:1"></span><a href="./">Back to the map</a></div>
+  <div class="warnbox" id="openWarn" hidden>Anyone who can open this page can change these settings. Set <code>PARK_MAP_ADMIN_PASSWORD</code> on the container to require a password.</div>
+
+  <form id="form" autocomplete="off">
+  <div style="display:grid; gap:16px">
+  <section>
+    <h2>General</h2>
+    <div class="grid">
+      <label class="check"><input type="checkbox" name="enabled"> Check the mailbox</label>
+      <label class="check"><input type="checkbox" name="test_mode"> Test mode (log replies and spots, send nothing)</label>
+      <label>Your callsign <input name="callsign" placeholder="W1AW"></label>
+      <label>PIN (optional) <input name="pin" placeholder="e.g. 7373"></label>
+    </div>
+    <label style="margin-top:10px">Allowed senders, one per line <textarea name="allowed_senders" placeholder="you@inreach.garmin.com&#10;@yourdomain.com"></textarea></label>
+    <p class="muted">Messages from anyone else are ignored and logged, so the log shows the exact address your inReach sends from. With a PIN set, it must be in the message or in the address it was sent to (like you+7373@gmail.com).</p>
+  </section>
+
+  <section>
+    <h2>Incoming mail (IMAP)</h2>
+    <div class="grid">
+      <label>Server <input name="imap.host" placeholder="imap.gmail.com"></label>
+      <label>Security <select name="imap.security"><option value="tls">TLS (port 993)</option><option value="starttls">STARTTLS (port 143)</option><option value="none">None</option></select></label>
+      <label>Port <input name="imap.port" type="number"></label>
+      <label>User <input name="imap.user" placeholder="you@gmail.com"></label>
+      <label>Password <input name="imap.password" type="password" autocomplete="new-password"></label>
+      <label>Folder <input name="folder"></label>
+      <label>Check every (seconds) <input name="interval_sec" type="number" min="30"></label>
+    </div>
+    <p class="muted">Use a mailbox just for this. Unread messages are handled and marked read. For Gmail, turn on 2-step verification and use an app password.</p>
+    <div class="bar"><button type="button" id="testMail">Test the login</button><button type="button" id="checkNow">Check now</button><span class="status" id="mailStatus"></span></div>
+  </section>
+
+  <section>
+    <h2>Outgoing mail (SMTP)</h2>
+    <p class="muted" style="margin-top:0">Only used to answer messages sent from ordinary email, which is handy for testing for free. inReach messages are answered through Garmin.</p>
+    <div class="grid">
+      <label>Server <input name="smtp.host" placeholder="smtp.gmail.com"></label>
+      <label>Security <select name="smtp.security"><option value="starttls">STARTTLS (port 587)</option><option value="tls">TLS (port 465)</option><option value="none">None</option></select></label>
+      <label>Port <input name="smtp.port" type="number"></label>
+      <label>User <input name="smtp.user"></label>
+      <label>Password <input name="smtp.password" type="password" autocomplete="new-password"></label>
+    </div>
+  </section>
+
+  <section>
+    <h2>POTA spots</h2>
+    <label class="check"><input type="checkbox" name="pota.enabled"> Post POTA spots</label>
+    <p class="muted">POTA's spot service doesn't take a login; spots are posted under your callsign.</p>
+    <details class="adv"><summary>Advanced</summary><label>Spot address <input name="pota.spot_url"></label></details>
+  </section>
+
+  <section>
+    <h2>SOTA spots (SOTAwatch)</h2>
+    <label class="check"><input type="checkbox" name="sota.enabled"> Post SOTA spots</label>
+    <div class="grid" style="margin-top:8px">
+      <label>SOTA user name <input name="sota.user"></label>
+      <label>SOTA password <input name="sota.password" type="password" autocomplete="new-password"></label>
+    </div>
+    <details class="adv"><summary>Advanced</summary>
+      <div class="grid">
+        <label>Login address <input name="sota.token_url"></label>
+        <label>Login client <input name="sota.client_id"></label>
+        <label>Spot address <input name="sota.spot_url"></label>
+      </div>
+    </details>
+  </section>
+
+  <div class="bar"><button class="primary" type="submit">Save</button><span class="status" id="saveStatus"></span></div>
+  <p class="muted">Passwords are saved only in the container's config folder and are never shown again; leave a password box empty to keep the saved one.</p>
+  </div>
+  </form>
+
+  <section>
+    <h2>Try a message</h2>
+    <p class="muted" style="margin-top:0">Type what you'd send from the inReach. Commands: <code>?</code> (what's here), <code>spot 14.062 cw [comment]</code>, <code>pota US-1234 14.062</code>, <code>sota W4V/BR-001 7.032</code>, <code>help</code>.</p>
+    <div class="grid">
+      <label>Message <input id="tryText" value="?"></label>
+      <label>Position (lat, lon) <input id="tryPos" value="36.6604, -81.5448"></label>
+    </div>
+    <div class="bar" style="margin-top:8px">
+      <button type="button" id="tryBtn">Try it</button>
+      <label class="check"><input type="checkbox" id="tryLive"> Really post spots (only when test mode is off)</label>
+    </div>
+    <div class="reply" id="tryOut" hidden></div>
+  </section>
+
+  <section>
+    <div class="bar"><h2 style="margin:0">Log</h2><span style="flex:1"></span><label class="check"><input type="checkbox" id="onlyProblems"> Only problems</label></div>
+    <p class="muted">Newest first. Click a line to see the full message, or the full answer from POTA, SOTA or Garmin.</p>
+    <div id="log"></div>
+  </section>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const form = $("form");
+let saved = null;
+
+function get(obj, path) { return path.split(".").reduce((o, k) => o == null ? o : o[k], obj); }
+function set(obj, path, v) {
+  const ks = path.split("."); let o = obj;
+  for (const k of ks.slice(0, -1)) o = o[k] = o[k] || {};
+  o[ks.at(-1)] = v;
+}
+
+function fill(s, isProtected) {
+  saved = s;
+  $("openWarn").hidden = isProtected;
+  for (const el of form.elements) {
+    if (!el.name) continue;
+    const v = get(s, el.name);
+    if (el.type === "checkbox") el.checked = !!v;
+    else if (el.type === "password") {
+      el.value = "";
+      el.placeholder = get(s, el.name.replace(/password$/, "has_password")) ? "saved (leave empty to keep)" : "";
+    } else if (el.name === "allowed_senders") el.value = (v || []).join("\n");
+    else el.value = v ?? "";
+  }
+}
+
+async function api(method, path, body) {
+  const r = await fetch(path, { method, headers: body ? { "Content-Type": "application/json" } : {}, body: body ? JSON.stringify(body) : undefined });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+async function load() {
+  const r = await api("GET", "api/settings");
+  fill(r.settings, r.protected);
+}
+
+form.addEventListener("submit", async e => {
+  e.preventDefault();
+  const s = structuredClone(saved);
+  for (const el of form.elements) {
+    if (!el.name) continue;
+    let v = el.type === "checkbox" ? el.checked : el.value.trim();
+    if (el.type === "number") v = +v || 0;
+    if (el.name === "allowed_senders") v = v.split(/[\n,]+/).map(x => x.trim()).filter(Boolean);
+    set(s, el.name, v);
+  }
+  $("saveStatus").textContent = "Saving…";
+  try {
+    const r = await api("PUT", "api/settings", s);
+    fill(r.settings, r.protected);
+    $("saveStatus").textContent = "Saved.";
+  } catch (err) { $("saveStatus").textContent = "Not saved: " + err.message; }
+});
+
+$("testMail").onclick = async () => {
+  $("mailStatus").textContent = "Connecting… (save first if you changed anything)";
+  const r = await api("POST", "api/gateway/test-mail");
+  $("mailStatus").textContent = r.error ? "Failed: " + r.error : r.text;
+};
+$("checkNow").onclick = async () => { $("mailStatus").textContent = (await api("POST", "api/gateway/check")).text; };
+
+$("tryBtn").onclick = async () => {
+  const m = $("tryPos").value.match(/(-?\d+(?:\.\d+)?)\s*[, ]\s*(-?\d+(?:\.\d+)?)/);
+  const body = { text: $("tryText").value, live: $("tryLive").checked };
+  if (m) { body.lat = +m[1]; body.lon = +m[2]; }
+  const r = await api("POST", "api/gateway/try", body);
+  $("tryOut").hidden = false;
+  $("tryOut").textContent = (r.reply || "(no reply)") + "\n\n" + r.chars + " of 160 characters";
+};
+
+let last = 0;
+const logEl = $("log");
+function addEntries(list) {
+  for (const e of list) {
+    const d = document.createElement("details");
+    d.className = e.level;
+    const s = document.createElement("summary");
+    s.textContent = new Date(e.time).toLocaleString() + "  " + e.event;
+    d.append(s);
+    if (e.detail) { const p = document.createElement("pre"); p.textContent = e.detail; d.append(p); }
+    logEl.prepend(d);
+    last = Math.max(last, e.n);
+  }
+  while (logEl.children.length > 500) logEl.lastChild.remove();
+  applyFilter();
+}
+function applyFilter() {
+  const only = $("onlyProblems").checked;
+  for (const d of logEl.children) d.hidden = only && !(d.classList.contains("warn") || d.classList.contains("error"));
+}
+$("onlyProblems").onchange = applyFilter;
+async function poll() {
+  try { addEntries(await api("GET", "api/gateway/log?after=" + last)); } catch {}
+  setTimeout(poll, 3000);
+}
+
+load().catch(err => { $("saveStatus").textContent = "Couldn't load settings: " + err.message; });
+poll();
+</script>
+</body>
+</html>

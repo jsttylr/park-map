@@ -2,3 +2,7 @@
 *.geojsonl
 report.csv
 all_parks_ext.csv
+# Gateway settings hold passwords; never commit them.
+config/
+settings.json
+gateway.log*
