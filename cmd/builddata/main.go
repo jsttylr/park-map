@@ -42,6 +42,7 @@ type park struct {
 	Pt             orb.Point
 	best           *candidate
 	cands          map[string]*candidate // best candidate per boundary key
+	otherState     int                   // parcels of its unit left out for being in another state
 	geom           orb.MultiPolygon
 }
 
@@ -145,6 +146,7 @@ func main() {
 	choose(parks, *show)
 
 	// Pass 2: collect every parcel of each chosen unit.
+	otherState := 0
 	want := map[string][]*park{}
 	for _, p := range parks {
 		if p.best.confidence() != "none" {
@@ -163,16 +165,33 @@ func main() {
 				return
 			}
 			b := mp.Bound()
+			st := prop(f, "State_Nm")
 			for _, p := range ps {
-				if b.Pad(gatherKm / kmPerDeg).Contains(p.Pt) {
-					p.geom = append(p.geom, mp...)
+				if !b.Pad(gatherKm / kmPerDeg).Contains(p.Pt) {
+					continue
 				}
+				// A park only takes the parcels in its own states, so the
+				// Kentucky piece of a national forest doesn't pull in the
+				// Virginia piece.
+				if len(st) == 2 && !strings.Contains(p.Loc, "US-"+strings.ToUpper(st)) {
+					otherState++
+					p.otherState++
+					continue
+				}
+				p.geom = append(p.geom, mp...)
 			}
 		})
 		if err != nil {
 			log.Fatal(err)
 		}
-		log.Printf("pass 2: %s", l)
+		log.Printf("pass 2: %s, %d parcels left out for being in another state", l, otherState)
+	}
+
+	fmt.Println("\n== Parks that left out parcels of their unit in other states (kept/left out)")
+	for _, p := range parks {
+		if p.otherState > 0 {
+			fmt.Printf("%s %s (%s) | %s %d/%d\n", p.Ref, p.Name, p.Loc, p.best.Unit, len(p.geom), p.otherState)
+		}
 	}
 
 	if err := writeGeoJSON(*out, parks); err != nil {
