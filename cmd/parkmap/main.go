@@ -104,7 +104,12 @@ func main() {
 	}
 	gw := gateway.New(set, store, gateway.NewLog(filepath.Join(*configDir, "gateway.log")))
 	settingsPage, _ := webFiles.ReadFile("web/settings.html")
-	gatewayRoutes(mux, gw, os.Getenv("PARK_MAP_ADMIN_PASSWORD"), settingsPage)
+	warn := configWarning(*configDir)
+	if warn != "" {
+		log.Print(warn)
+		gw.Log().Warn("Settings won't survive an update", warn)
+	}
+	gatewayRoutes(mux, gw, os.Getenv("PARK_MAP_ADMIN_PASSWORD"), warn, settingsPage)
 	go gw.Run(context.Background())
 	log.Printf("ready after %v: open http://%s/", time.Since(start).Round(time.Second), *listen)
 	log.Fatal(http.ListenAndServe(*listen, mux))

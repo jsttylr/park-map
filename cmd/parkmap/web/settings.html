@@ -44,6 +44,7 @@
 <body>
 <main>
   <div class="bar"><h1>Satellite messenger gateway</h1><span style="flex:1"></span><a href="./">Back to the map</a></div>
+  <div class="warnbox" id="configWarn" hidden></div>
   <div class="warnbox" id="openWarn" hidden>Anyone who can open this page can change these settings. Set <code>PARK_MAP_ADMIN_PASSWORD</code> on the container to require a password.</div>
 
   <form id="form" autocomplete="off">
@@ -130,7 +131,8 @@
   </section>
 
   <section>
-    <div class="bar"><h2 style="margin:0">Log</h2><span style="flex:1"></span><label class="check"><input type="checkbox" id="onlyProblems"> Only problems</label></div>
+    <div class="bar"><h2 style="margin:0">Log</h2><span style="flex:1"></span><label class="check"><input type="checkbox" id="onlyProblems"> Only problems</label><button type="button" id="asText">Show as text to copy</button></div>
+    <textarea id="logText" readonly hidden style="min-height:300px; font: 12px ui-monospace, monospace"></textarea>
     <p class="muted">Newest first. Click a line to see the full message, or the full answer from POTA, SOTA or Garmin.</p>
     <div id="log"></div>
   </section>
@@ -171,6 +173,8 @@ async function api(method, path, body) {
 async function load() {
   const r = await api("GET", "api/settings");
   fill(r.settings, r.protected);
+  $("configWarn").hidden = !r.config_warning;
+  $("configWarn").textContent = r.config_warning || "";
 }
 
 form.addEventListener("submit", async e => {
@@ -228,6 +232,13 @@ function applyFilter() {
   for (const d of logEl.children) d.hidden = only && !(d.classList.contains("warn") || d.classList.contains("error"));
 }
 $("onlyProblems").onchange = applyFilter;
+$("asText").onclick = async () => {
+  const t = $("logText");
+  if (!t.hidden) { t.hidden = true; return; }
+  const list = await api("GET", "api/gateway/log?after=0");
+  t.value = list.reverse().map(e => new Date(e.time).toLocaleString() + "  [" + e.level + "] " + e.event + (e.detail ? "\n" + e.detail : "")).join("\n\n");
+  t.hidden = false; t.focus(); t.select();
+};
 async function poll() {
   try { addEntries(await api("GET", "api/gateway/log?after=" + last)); } catch {}
   setTimeout(poll, 3000);

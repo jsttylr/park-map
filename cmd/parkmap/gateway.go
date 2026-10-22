@@ -25,13 +25,16 @@ func adminOnly(pass string, h http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-func gatewayRoutes(mux *http.ServeMux, g *gateway.Gateway, pass string, settingsPage []byte) {
+func gatewayRoutes(mux *http.ServeMux, g *gateway.Gateway, pass, configWarn string, settingsPage []byte) {
+	info := func() map[string]any {
+		return map[string]any{"settings": g.Store().Get().Public(), "protected": pass != "", "config_warning": configWarn}
+	}
 	mux.HandleFunc("GET /settings", adminOnly(pass, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(settingsPage)
 	}))
 	mux.HandleFunc("GET /api/settings", adminOnly(pass, func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, map[string]any{"settings": g.Store().Get().Public(), "protected": pass != ""})
+		writeJSON(w, info())
 	}))
 	mux.HandleFunc("PUT /api/settings", adminOnly(pass, func(w http.ResponseWriter, r *http.Request) {
 		var s gateway.Settings
@@ -45,7 +48,7 @@ func gatewayRoutes(mux *http.ServeMux, g *gateway.Gateway, pass string, settings
 		}
 		g.Log().Info("Settings saved")
 		g.CheckNow()
-		writeJSON(w, map[string]any{"settings": g.Store().Get().Public(), "protected": pass != ""})
+		writeJSON(w, info())
 	}))
 	mux.HandleFunc("GET /api/gateway/log", adminOnly(pass, func(w http.ResponseWriter, r *http.Request) {
 		after, _ := strconv.Atoi(r.URL.Query().Get("after"))
