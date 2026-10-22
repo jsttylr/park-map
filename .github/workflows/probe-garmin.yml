@@ -1,0 +1,12 @@
+name: probe-garmin
+# One-off: look at how Garmin's new reply page sends a reply. Uses a made-up message id.
+on:
+  push:
+    paths: [".github/workflows/probe-garmin.yml"]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: curl -sSL -A "Mozilla/5.0" -o page.html -w "%{http_code} %{url_effective}\n" "https://messenger.garmin.com/r?extId=AAAAAAAAAAAAAAAAAAAAAA" ; wc -c page.html; sed -e 's/></>\n</g' page.html | head -c 20000
+      - run: grep -oE '(src|href)="[^"]+\.js[^"]*"' page.html | sed -E 's/^(src|href)="//; s/"$//' | sort -u | tee js.txt
+      - run: for u in $(cat js.txt); do case "$u" in http*) url="$u";; //*) url="https:$u";; *) url="https://messenger.garmin.com$u";; esac; echo "=== $url"; curl -sSL -A "Mozilla/5.0" "$url" -o b.js; wc -c b.js; grep -oiE '.{0,160}(reply|extId|sendMessage|/api/|fetch\(|axios|"POST"|method:"post").{0,200}' b.js | head -60; done
