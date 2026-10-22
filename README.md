@@ -49,6 +49,8 @@ Set it up on the settings page (the link at the bottom of the map panel, or `htt
 
 1. Make a mailbox just for this (a spare Gmail with 2-step verification and an app password works) and fill in the IMAP settings. **Test the login** checks them.
 2. Put your callsign in, add `no.reply.inreach@garmin.com` to **Allowed senders**, and set a **PIN**. Every inReach sends from that one Garmin address, so the PIN is what tells your messages from anyone else's, and messages from Garmin's address are refused without one. Put the PIN in the address you send to (with Gmail, save the inReach contact as `yourbox+7373@gmail.com`) or as a word in the message. Messages from anyone else are ignored and logged.
+
+   If your mail host doesn't deliver `+` addresses (cPanel hosts often don't), make a forwarder instead. In cPanel, open **Email > Forwarders > Add Forwarder**, enter an address with the PIN in it (for example `spots7373@yourdomain.com`) and forward it to the gateway's mailbox. Save that forwarder address as the inReach contact. The gateway sees the PIN in the **To** line of the forwarded message just like a `+` address. A forwarder made in your mail program (a rule that resends the message) usually rewrites the To line, so for that kind put the PIN as a word in the message instead.
 3. Leave **Test mode** on at first. Replies and spots are written to the log instead of being sent. **Try a message** on the same page runs a command without sending anything.
 4. Turn on POTA and SOTA spotting if you want them. SOTA needs your SOTAwatch login.
 
@@ -66,7 +68,7 @@ Messages sent from ordinary email work too, with coordinates typed in the messag
 
 Settings and passwords are saved in the `/config` folder, never in the image or this repository. Set `PARK_MAP_ADMIN_PASSWORD` on the container so the settings page asks for a password.
 
-Garmin has no public way to reply to an inReach. Like SOTAmāt, the gateway fills in the reply form that Garmin links in each message, so a change on Garmin's side can break replies. The log records every exchange with Garmin, POTA and SOTA in full, so you can see what went wrong. Each reply is one 160-character message.
+Garmin has no public way to reply to an inReach. Like SOTAmāt, the gateway answers through the reply page Garmin links in each message, so a change on Garmin's side can break replies. The log records every exchange with Garmin, POTA and SOTA in full, so you can see what went wrong. Each reply is one 160-character message.
 
 ## Point lookup for a satellite messenger
 
