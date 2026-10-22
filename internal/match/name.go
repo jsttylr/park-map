@@ -126,3 +126,27 @@ func SharesName(a, b string) bool {
 	}
 	return same
 }
+
+// NamesPart reports whether a combined park name names the unit as one of its
+// parts: "George Washington and Jefferson National Forests" names "Jefferson
+// National Forest". Every word of the unit's name, including the kind of land,
+// must be in the park's name, and the park's name must say more than the unit's.
+func NamesPart(park, unit string) bool {
+	pt, ut := Tokens(park), Tokens(unit)
+	ps := map[string]bool{}
+	for _, w := range pt {
+		ps[strings.TrimSuffix(w, "s")] = true
+	}
+	pc, uc := core(pt), core(ut)
+	if len(uc) == 0 || len(pc) <= len(uc) {
+		return false
+	}
+	strong := false
+	for _, w := range ut {
+		if !ps[strings.TrimSuffix(w, "s")] {
+			return false
+		}
+		strong = strong || uc[w] && !weak[w]
+	}
+	return strong
+}

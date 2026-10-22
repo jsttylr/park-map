@@ -31,6 +31,7 @@ const (
 	cell       = 0.05  // grid cell size for the park point index, degrees
 	nearKm     = 2.0   // how far from a park point a polygon may sit and still be a candidate
 	gatherKm   = 300.0 // how far away parcels of the same unit are still collected
+	combinedKm = 800.0 // the same for the other units a combined name names
 	kmPerDeg   = 111.0
 	minHigh    = 0.5
 	minMedium  = 0.3
@@ -43,6 +44,7 @@ type park struct {
 	best           *candidate
 	cands          map[string]*candidate // best candidate per boundary key
 	otherState     int                   // parcels of its unit left out for being in another state
+	combined       map[string]bool       // other units its combined name names
 	geom           orb.MultiPolygon
 }
 
@@ -148,17 +150,42 @@ func main() {
 	// Pass 2: collect every parcel of each chosen unit.
 	otherState := 0
 	want := map[string][]*park{}
+	byWord := map[string][]*park{} // matched parks by each word of their name
 	for _, p := range parks {
 		if p.best.confidence() != "none" {
 			want[p.best.Key] = append(want[p.best.Key], p)
+			for _, w := range match.Tokens(p.Name) {
+				byWord[w] = append(byWord[w], p)
+			}
 		}
 	}
 	for _, l := range layers {
 		err := eachFeature(l, func(f *geojson.Feature, mp orb.MultiPolygon) {
 			var ps []*park
+			reach := map[*park]float64{}
 			for _, k := range []string{unitKey(f), locKey(f)} {
 				if k != "" {
 					ps = append(ps, want[k]...)
+				}
+			}
+			// A park named for several units ("George Washington and
+			// Jefferson National Forests") also takes the other units it
+			// names, when the same agency manages them.
+			if unit := prop(f, "Unit_Nm"); unit != "" {
+				if t := match.Tokens(unit); len(t) > 0 {
+					for _, p := range byWord[t[0]] {
+						if p.best.Key != unitKey(f) && p.best.Manager == prop(f, "Mang_Name") && p.best.Layer == prop(f, "FeatClass") &&
+							match.NamesPart(p.Name, unit) {
+							ps = append(ps, p)
+							reach[p] = combinedKm
+							if !p.combined[unit] {
+								if p.combined == nil {
+									p.combined = map[string]bool{}
+								}
+								p.combined[unit] = true
+							}
+						}
+					}
 				}
 			}
 			if len(ps) == 0 {
@@ -167,7 +194,11 @@ func main() {
 			b := mp.Bound()
 			st := prop(f, "State_Nm")
 			for _, p := range ps {
-				if !b.Pad(gatherKm / kmPerDeg).Contains(p.Pt) {
+				km := gatherKm
+				if r := reach[p]; r > 0 {
+					km = r
+				}
+				if !b.Pad(km / kmPerDeg).Contains(p.Pt) {
 					continue
 				}
 				// A park only takes the parcels in its own states, so the
@@ -185,6 +216,18 @@ func main() {
 			log.Fatal(err)
 		}
 		log.Printf("pass 2: %s, %d parcels left out for being in another state", l, otherState)
+	}
+
+	fmt.Println("\n== Parks that also took other units their name names")
+	for _, p := range parks {
+		if len(p.combined) > 0 {
+			var us []string
+			for u := range p.combined {
+				us = append(us, u)
+			}
+			sort.Strings(us)
+			fmt.Printf("%s %s (%s) | %s + %s\n", p.Ref, p.Name, p.Loc, p.best.Unit, strings.Join(us, "; "))
+		}
 	}
 
 	fmt.Println("\n== Parks that left out parcels of their unit in other states (kept/left out)")

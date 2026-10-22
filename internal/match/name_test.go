@@ -48,3 +48,21 @@ func TestSharesName(t *testing.T) {
 		}
 	}
 }
+
+func TestNamesPart(t *testing.T) {
+	for _, c := range []struct {
+		park, unit string
+		want       bool
+	}{
+		{"George Washington and Jefferson National Forests", "Jefferson National Forest", true},
+		{"George Washington & Jefferson National Forest", "George Washington National Forest", true},
+		{"George Washington and Jefferson National Forests", "Jefferson State Forest", false},
+		{"Jefferson National Forest Wildlife Management Area", "Jefferson National Forest", false},
+		{"Jefferson National Forest", "Jefferson National Forest", false},
+		{"Big Lake and Little Lake State Park", "Big Lake State Park", false},
+	} {
+		if got := NamesPart(c.park, c.unit); got != c.want {
+			t.Errorf("%q / %q: got %v", c.park, c.unit, got)
+		}
+	}
+}
