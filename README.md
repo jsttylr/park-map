@@ -112,9 +112,9 @@ Leave off `format=text` to get the same answer as JSON. This is the piece an inR
 
 Parks on the Air and Summits on the Air are trademarks of their owners. This project isn't affiliated with or endorsed by POTA, SOTA, sotl.as, FieldQTH or USGS.
 
-Boundaries are matched to POTA parks by name and location, so a few will be wrong or missing. Most missing ones are small BLM sites in the west that PAD-US doesn't map as their own parcel. The `report.csv` on the [reports branch](https://github.com/jsttylr/park-map/blob/reports/report.csv) lists every park with how it was matched, refreshed by each build.
+Boundaries are matched to POTA parks by name and location, so a few will be wrong or missing. Most missing ones are small BLM sites in the west that PAD-US doesn't map as their own parcel. The `report.csv` on the [reports branch](https://github.com/jsttylr/park-map/blob/reports/report.csv) lists every park with how it was matched, refreshed by each build, and [parks-missing-boundaries.xlsx](docs/parks-missing-boundaries.xlsx) lists the ones with no boundary (see [Notes](#notes)).
 
-Trail parks are drawn as their route plus 100 ft either side, the way POTA defines a trail, using the route of the same name in OpenStreetMap near the park's location. A trail park with no matching route there falls back to its PAD-US outline if it has one.
+Trail parks are drawn as their route plus 100 ft either side, the way POTA defines a trail (see [Notes](#notes)).
 
 N-fer areas are the exact overlaps of the boundaries, worked out when the data is built. Two parks that only share a boundary line don't count as overlapping, and overlaps thinner than about 15 m or smaller than about 2,000 square meters are left out.
 
@@ -128,6 +128,44 @@ The `build` workflow on GitHub does it all:
 4. `cmd/buildsota` joins the SOTA summits list with the sotl.as activation zones for the US associations and writes `sota.geojson.gz`.
 5. `cmd/parkmap -selftest` loads both, works out the overlaps and prints sample lookups.
 6. The Docker image is built with the data inside and pushed to `ghcr.io/jsttylr/park-map`.
+
+## Notes
+
+### How trails are drawn
+
+POTA's [rule 1.4, item 5](https://docs.pota.app/docs/rules.html) says that when a trail or river is a POTA reference by itself, and not part of a land park with a defined boundary, the activator and the station must be on public property within 100 ft (30.5 m) of the edge of the trail. So a trail is drawn as its route plus 100 ft either side, not as the land around it.
+
+1. **Which parks are trails.** Any active US park with "Trail" or "Trails" in its name, about 360 of them.
+2. **Getting the routes.** For each state with a trail park, the OpenStreetMap extract is downloaded from Geofabrik and cut down with osmium to route relations (hiking, foot, bicycle, mountain bike, horse, historic, canoe, ski and similar) and named paths, footways, cycleways and bridleways.
+3. **Matching a park to its route** (`cmd/fetchtrails`):
+   - The route's name has to share a distinctive word with the park's name and score at least 0.5 on name similarity.
+   - It's rejected if each name has a word the other lacks ("Moab Rim Trail" is not "Hunter Rim Trail"), or if the route is a street ("Santa Fe Drive").
+   - A section of a long trail ("Appalachian Trail - Virginia") is swapped for the whole trail it belongs to.
+   - The best-named route that comes within 25 km of the park's POTA location wins, with a small bonus within 5 km.
+   - With no route relation, the best-named path within 5 km is used, plus every path of the same name within 40 km.
+4. **Drawing the band** (`scripts/buffer_trails.py`). Each route is widened by 100 ft (30.48 m) either side, measured in meters around the trail, and cut into 0.1° pieces so the overlap checks stay quick.
+5. **Which shape a trail park gets:**
+   - A name that ends in "Trail" is the trail itself and gets the band only, even where PAD-US has a wider corridor. The Appalachian Trail's NPS land is about 132,000 acres, but only the roughly 50,000-acre band counts for the trail reference.
+   - A park with a boundary that is also a trail ("Katy Trail State Park", "Wilson Cumberland Trail State Park") follows the normal "inside the boundary" rule. It gets its PAD-US outline plus the band, since PAD-US often has only part of these.
+   - Land named after a trail ("Scioto Trail State Forest") keeps its PAD-US outline when that's a confident match.
+   - A trail with no matching route falls back to its PAD-US outline if it has one, and otherwise isn't drawn.
+
+Limits: the band doesn't cut out private land the trail crosses, even though the rule only counts public property. An OpenStreetMap route can also be incomplete or differ from the official one. POTA itself treats its maps as guidelines only (rule 1.4, item 1).
+
+### Owned land and authorized boundaries
+
+PAD-US often has a unit twice: once as the land the agency owns, and once as the wider area it is authorized to buy (its proclamation boundary), which can include private land. When both match a park equally well, the owned land wins, because POTA only counts public property.
+
+### Parks with no boundary
+
+[docs/parks-missing-boundaries.xlsx](docs/parks-missing-boundaries.xlsx) is a snapshot of the parks the map can't draw yet, from the build of 23 October 2026. About 2,860 of 13,010 US parks have no boundary, and most of them are BLM sites and wildlife areas. The sheet has these tabs:
+
+- **Summary:** counts by kind of park and by state.
+- **No boundary:** every undrawn park with links to its POTA page and a map.
+- **Weak matches:** boundaries that were drawn but are worth a check.
+- **Trails drawn:** the OpenStreetMap route used for each trail.
+
+If you track down an official boundary for one of them, open an issue with a link to it. For the current state of every park, use `report.csv` on the [reports branch](https://github.com/jsttylr/park-map/blob/reports/report.csv).
 
 ## Disclaimer
 
