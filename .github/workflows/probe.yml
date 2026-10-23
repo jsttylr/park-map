@@ -1,0 +1,55 @@
+name: probe
+on:
+  push:
+    paths: ['.github/workflows/probe.yml']
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: List agency map services
+        shell: python
+        run: |
+          import json, urllib.request, urllib.parse, re
+          def get(u):
+              try:
+                  with urllib.request.urlopen(urllib.request.Request(u, headers={'User-Agent': 'park-map'}), timeout=60) as r:
+                      return json.load(r)
+              except Exception as e:
+                  return {'error': str(e)}
+          def ls(root, pat='.'):
+              print('\n##', root)
+              d = get(root + '?f=json')
+              if 'error' in d: print('  ERR', d['error']); return
+              for f in d.get('folders', []):
+                  if re.search(pat, f, re.I): print('  folder', f)
+              for s in d.get('services', []):
+                  if re.search(pat, s['name'], re.I): print('  ', s['name'], s['type'])
+          def layer(u):
+              d = get(u + '?f=json')
+              if 'error' in d: print('\n###', u, 'ERR', d['error']); return
+              if 'layers' in d:
+                  print('\n###', u, [(l['id'], l['name']) for l in d['layers']]); return
+              n = get(u + '/query?where=1%3D1&returnCountOnly=true&f=json')
+              print('\n###', u, d.get('name'), d.get('geometryType'), 'max', d.get('maxRecordCount'), 'count', n.get('count'))
+              print('   fields', [f['name'] for f in d.get('fields', [])])
+              s = get(u + '/query?where=1%3D1&outFields=*&returnGeometry=false&resultRecordCount=3&f=json')
+              for f in s.get('features', [])[:3]: print('   ', {k: v for k, v in f['attributes'].items() if v not in (None, '', ' ')})
+          def search(q):
+              print('\n## AGOL search:', q)
+              d = get('https://www.arcgis.com/sharing/rest/search?' + urllib.parse.urlencode({'q': q + ' type:"Feature Service"', 'num': 15, 'f': 'json'}))
+              for r in d.get('results', []): print('  ', r['owner'], '|', r['title'], '|', r.get('url'))
+          ls('https://gis.blm.gov/arcgis/rest/services')
+          for f in ['recreation', 'range', 'lands', 'admin_boundaries', 'nlcs']:
+              ls('https://gis.blm.gov/arcgis/rest/services/' + f)
+          ls('https://services1.arcgis.com/fBc8EJBxQRMcHlei/arcgis/rest/services', r'trail|NHT|NST|centerline|boundar|tract|heritage')
+          ls('https://services.arcgis.com/QVENGdaPbd4LUkLV/arcgis/rest/services', r'FWS|refuge|hatcher|interest|approved|boundar')
+          ls('https://services7.arcgis.com/n1YM8pTrFmm7L4hs/arcgis/rest/services', r'rec|lake|project|fee|land')
+          for q in ['BLM National Recreation Management Areas', 'BLM Herd Management Areas national', 'National Historic Trails centerlines NPS', 'USACE Recreation Areas', 'Corps of Engineers recreation area boundaries', 'Reclamation recreation management areas', 'BLM National Landscape Conservation System', 'National Fish Hatchery boundaries', 'TVA recreation lands']:
+              search(q)
+          for u in ['https://gis.blm.gov/arcgis/rest/services/recreation/BLM_Natl_Recreation/MapServer/9',
+                    'https://gis.blm.gov/arcgis/rest/services/recreation/BLM_Natl_Recs_poly/MapServer',
+                    'https://services.arcgis.com/QVENGdaPbd4LUkLV/ArcGIS/rest/services/FWSInterest_Simplified_Authoritative/FeatureServer',
+                    'https://services3.arcgis.com/OYP7N6mAJJCyH6hd/ArcGIS/rest/services/USFWS_National_Realty_Boundaries/FeatureServer',
+                    'https://services1.arcgis.com/fBc8EJBxQRMcHlei/ArcGIS/rest/services/Interior_Region1_NT_centerlines_web_mercator/FeatureServer/0',
+                    'https://services7.arcgis.com/n1YM8pTrFmm7L4hs/ArcGIS/rest/services/usace_rez/FeatureServer']:
+              layer(u)
