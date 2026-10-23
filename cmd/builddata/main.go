@@ -36,6 +36,7 @@ const (
 	minHigh    = 0.5
 	minMedium  = 0.3
 	minNearMed = 0.75
+	pinSlackKm = 0.1 // a pin this close to an outline counts as inside it
 )
 
 type park struct {
@@ -83,15 +84,22 @@ func (c *candidate) rank() float64 {
 	return r
 }
 
+// pinIn reports whether the park's pin is on the outline or just beside it.
+// POTA sometimes nudges a pin off the park, to a parking lot or to spread out
+// a crowded map, so a pin within pinSlackKm still counts.
+func (c *candidate) pinIn() bool {
+	return c.Contains || c.DistKm <= pinSlackKm
+}
+
 func (c *candidate) confidence() string {
 	switch {
 	case c == nil:
 		return "none"
 	case c.Route:
 		return "route"
-	case c.Contains && c.Score >= minHigh:
+	case c.pinIn() && c.Score >= minHigh:
 		return "high"
-	case c.Contains && c.Score >= minMedium, !c.Contains && c.Score >= minNearMed:
+	case c.pinIn() && c.Score >= minMedium, c.Score >= minNearMed:
 		return "medium"
 	}
 	return "none"
