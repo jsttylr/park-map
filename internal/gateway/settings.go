@@ -1,6 +1,6 @@
-// Package gateway answers satellite messenger (Garmin inReach) messages: it
-// checks a mailbox, looks up the parks and summits at the position the
-// message was sent from, posts POTA and SOTA spots, and replies.
+// Package gateway answers messages sent by email, from a Garmin inReach or
+// anything else: it checks a mailbox, looks up the parks and summits at the
+// position the message was sent from, posts POTA and SOTA spots, and replies.
 package gateway
 
 import (

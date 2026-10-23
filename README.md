@@ -9,14 +9,14 @@ It was inspired by [FieldQTH](https://fieldqth.app), the portable-operations pla
 It's built for two jobs:
 
 - **Planning a trip.** Before you leave, find the spots where two, three or more parks overlap (n-fers), see which summits sit inside parks, and pick an operating spot that's actually inside every boundary you plan to claim.
-- **Finding out where you are.** In the field, send `?` from a Garmin inReach and get back every park and summit at your position in one text message, then spot them with one more. It's handy when you're improvising: if QSOs are slow, finding out you're standing in a 3-fer gives hunters a good reason to come looking for you.
+- **Finding out where you are.** In the field, send `?` by email, from a Garmin inReach or anything else that can send one, and get back every park and summit at your position in one short reply, then spot them with one more. It's handy when you're improvising: if QSOs are slow, finding out you're standing in a 3-fer gives hunters a good reason to come looking for you.
 
 What the map does:
 
 - **Park outlines.** About 10,000 of the 13,000 active US parks are drawn with their boundary. Trails are drawn as the route plus 100 ft either side, the way POTA counts them. The rest show as a dot at the POTA location.
 - **N-fer areas.** Where park boundaries overlap, just the overlapping area is colored by how many parks meet there: blue for a 2-fer, red for a 3-fer, orange for 4 or more. Parks themselves are light green. Slide the filter to 2, 3 or more to show only those areas.
 - **SOTA summits.** Summits and their activation zones are yellow with a dark brown dashed edge. Turn them on or off, and choose whether a summit counts toward the n-fer.
-- **What's here.** Click anywhere to list every park and summit at that exact spot, plus nearby parks that have no outline on file. The box at the bottom shows the text reply a satellite messenger would get for that spot.
+- **What's here.** Click anywhere to list every park and summit at that exact spot, plus nearby parks that have no outline on file. The box at the bottom shows the reply the email gateway would send for that spot.
 - **Search** by reference (`US-1234`, `W7W/KG-001`), by name, or by pasting coordinates in almost any format (`35.5628, -83.4985`, `N35 33.768 W083 29.910`, `35°33'46.1"N 83°29'54.6"W`).
 
 ![US overview, colored by n-fer](https://github.com/jsttylr/park-map/releases/download/screenshots/overview.png)
@@ -48,11 +48,11 @@ The map data is built into the image, so nothing needs to be downloaded at start
 | Settings and gateway log folder | `PARK_MAP_CONFIG` | `config` (`/config` in Docker) |
 | Settings page password | `PARK_MAP_ADMIN_PASSWORD` | none (anyone on your network can open it) |
 
-## Satellite messenger gateway (Garmin inReach)
+## Email gateway (Garmin inReach or any email)
 
-The container can answer messages from an inReach. It checks a mailbox you set up for it, works out where the message was sent from, and replies with the parks and summits there. It can also post POTA and SOTA spots for you. The idea and the command style come from [SOTAmāt](https://sotamat.com) by AB6D.
+The container can answer messages sent by email, whether from a Garmin inReach or from a phone or anything else that can send email. It checks a mailbox you set up for it, works out where the message was sent from, and replies with the parks and summits there. An inReach sends its position with each message; from anything else, type your coordinates after the command. It can also post POTA and SOTA spots for you. The idea and the command style come from [SOTAmāt](https://sotamat.com) by AB6D.
 
-Set it up on the settings page (the link at the bottom of the map panel, or `http://<server>:8075/settings`):
+Set it up on the settings page (the **Email gateway settings and log** link at the bottom of the map panel, or `http://<server>:8075/settings`):
 
 1. Make a mailbox just for this (a spare Gmail with 2-step verification and an app password works) and fill in the IMAP settings. **Test the login** checks them.
 2. Put your callsign in, add `no.reply.inreach@garmin.com` to **Allowed senders**, and set a **PIN**. Every inReach sends from that one Garmin address, so the PIN is what tells your messages from anyone else's, and messages from Garmin's address are refused without one. Put the PIN in the address you send to (with Gmail, save the inReach contact as `yourbox+7373@gmail.com`) or as a word in the message. Messages from anyone else are ignored and logged.
@@ -62,7 +62,7 @@ Set it up on the settings page (the link at the bottom of the map panel, or `htt
 4. Turn on POTA and SOTA spotting if you want them. SOTA needs your SOTAwatch login.
 5. Optionally fill in **MapShare**. A message that arrives without a location (it can happen when the inReach hasn't got a GPS fix yet) then uses the newest point from your MapShare tracking page instead, as long as it's recent enough. It needs tracking turned on and MapShare enabled at explore.garmin.com.
 
-Commands (send them from the inReach to the mailbox address). Capitals don't matter. If your PIN isn't in the address you send to, add it anywhere in the message as its own word.
+Commands (send them to the mailbox address, from the inReach or any email). Capitals don't matter. If your PIN isn't in the address you send to, add it anywhere in the message as its own word.
 
 | Message | What it does |
 |---|---|
@@ -89,7 +89,7 @@ What gets sent:
 - If `spot` finds a park or summit whose program is turned off on the settings page, it spots the rest and the reply says what was skipped (`SOTA off: W4V/BR-001 not spotted.`). `pota` or `sota` with its program turned off replies that it's off and sends nothing.
 - The reply looks like `Spotted US-1234 US-5678 14062 kHz CW.` Anything POTA or SOTA refused shows as `FAILED: ... See log.`, and the log has their full answer.
 
-Messages sent from ordinary email work too, with coordinates typed in the message (`? 37.5, -79.5`). Those replies go out through the SMTP server you set, which is a free way to test before paying for inReach messages.
+Messages from ordinary email (a phone, a computer, or another messenger that can send email) work the same way, as long as the sender is on **Allowed senders**. Type the coordinates in the message (`? 37.5, -79.5`), or let MapShare fill them in. Those replies go out through the SMTP server you set. It's also a free way to test before paying for inReach messages.
 
 Settings and passwords are saved in the `/config` folder, never in the image or this repository. Set `PARK_MAP_ADMIN_PASSWORD` on the container so the settings page asks for a password.
 
@@ -103,7 +103,7 @@ Garmin has no public way to reply to an inReach. Like SOTAmāt, the gateway answ
 3-fer: US-1111 Big Forest, US-2222 Big Wilderness, US-3333 Long Trail. Summit W7W/XX-001 Some Peak. Near: US-4444 0.8km
 ```
 
-Leave off `format=text` to get the same answer as JSON. The inReach gateway uses the same lookup, so it's also a way to plug the map into something else.
+Leave off `format=text` to get the same answer as JSON. The email gateway uses the same lookup, so it's also a way to plug the map into something else.
 
 ## Sources and credits
 
@@ -176,4 +176,4 @@ The `build` workflow on GitHub does it all:
 - **Not for navigation.** Don't use this map to find your way in the backcountry. Carry proper maps and navigation tools, and know how to use them.
 - **The outdoors is dangerous.** Summits and many multi-park spots are remote, steep or exposed, and reaching them can involve hazardous terrain, weather, wildlife, water crossings, long distances and no phone coverage. You alone decide whether a trip is safe for you, and you **assume all risk** of going there. Plan carefully, tell someone where you're going, and turn back when conditions call for it.
 - **Spots are posted under your callsign.** Check that the gateway is spotting what you meant before relying on it, and you remain responsible for following POTA and SOTA rules.
-- **Satellite replies are best effort.** A reply from the lookup can be late, wrong or never arrive. Don't depend on it for safety.
+- **Gateway replies are best effort.** A reply from the gateway can be late, wrong or never arrive. Don't depend on it for safety.

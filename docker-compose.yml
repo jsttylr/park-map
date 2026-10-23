@@ -8,7 +8,7 @@ services:
     ports:
       - "8075:8075"
     volumes:
-      # Satellite gateway settings (mail and SOTA logins) and its log.
+      # Email gateway settings (mail and SOTA logins) and its log.
       - ./config:/config
     environment:
       # Password for the settings page; any user name works.

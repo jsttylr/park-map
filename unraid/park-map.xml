@@ -8,7 +8,7 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/jsttylr/park-map/issues</Support>
   <Project>https://github.com/jsttylr/park-map</Project>
-  <Overview>Map of US Parks on the Air parks with their real boundaries, plus SOTA summits and their activation zones, for planning a trip and for finding out where you are in the field. Filter to spots where two, three or more parks overlap (n-fers) and click anywhere to see every park and summit at that point. Trails are drawn 100 ft either side of the route, as POTA counts them. An optional Garmin inReach gateway replies with the parks and summits at your position and can post POTA and SOTA spots. Park outlines come from USGS PAD-US, trail routes are © OpenStreetMap contributors, and activation zones are © sotl.as contributors.</Overview>
+  <Overview>Map of US Parks on the Air parks with their real boundaries, plus SOTA summits and their activation zones, for planning a trip and for finding out where you are in the field. Filter to spots where two, three or more parks overlap (n-fers) and click anywhere to see every park and summit at that point. Trails are drawn 100 ft either side of the route, as POTA counts them. An optional email gateway, for a Garmin inReach or any other email, replies with the parks and summits at your position and can post POTA and SOTA spots. Park outlines come from USGS PAD-US, trail routes are © OpenStreetMap contributors, and activation zones are © sotl.as contributors.</Overview>
   <Category>Tools: Other:</Category>
   <WebUI>http://[IP]:[PORT:8075]/</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/jsttylr/park-map/main/unraid/park-map.xml</TemplateURL>
@@ -19,7 +19,7 @@
   <DonateText/>
   <DonateLink/>
   <Requires/>
-  <Config Name="Config folder" Target="/config" Default="/mnt/user/appdata/park-map" Mode="rw" Description="Satellite gateway settings (mail, SOTA login) and its log." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/park-map</Config>
+  <Config Name="Config folder" Target="/config" Default="/mnt/user/appdata/park-map" Mode="rw" Description="Email gateway settings (mail, SOTA login) and its log." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/park-map</Config>
   <Config Name="Settings password" Target="PARK_MAP_ADMIN_PASSWORD" Default="" Mode="" Description="Password for the settings page and log (user name can be anything). Leave empty only if your network is private." Type="Variable" Display="always" Required="false" Mask="true"></Config>
   <Config Name="Web page port" Target="8075" Default="8075" Mode="tcp" Description="Port for the map page." Type="Port" Display="always" Required="true" Mask="false">8075</Config>
 </Container>
