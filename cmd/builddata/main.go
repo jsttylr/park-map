@@ -86,7 +86,9 @@ func (c *candidate) rank() float64 {
 
 // pinIn reports whether the park's pin is on the outline or just beside it.
 // POTA sometimes nudges a pin off the park, to a parking lot or to spread out
-// a crowded map, so a pin within pinSlackKm still counts.
+// a crowded map, so a pin within pinSlackKm of a well-named outline still
+// counts. Weaker names still need the pin inside, since a nearby outline with
+// half a name in common is usually a different place.
 func (c *candidate) pinIn() bool {
 	return c.Contains || c.DistKm <= pinSlackKm
 }
@@ -99,7 +101,7 @@ func (c *candidate) confidence() string {
 		return "route"
 	case c.pinIn() && c.Score >= minHigh:
 		return "high"
-	case c.pinIn() && c.Score >= minMedium, c.Score >= minNearMed:
+	case c.Contains && c.Score >= minMedium, c.Score >= minNearMed:
 		return "medium"
 	}
 	return "none"
@@ -337,7 +339,7 @@ func useTrails(path string, parks []*park) (int, error) {
 		}
 		// Land named after a trail ("Scioto Trail State Forest") keeps a
 		// good PAD-US outline; only the trail itself is drawn as a band.
-		if p.best.confidence() == "high" && !match.EndsInTrail(p.Name) {
+		if p.best.Contains && p.best.confidence() == "high" && !match.EndsInTrail(p.Name) {
 			return
 		}
 		geom := mp
