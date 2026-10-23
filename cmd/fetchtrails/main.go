@@ -11,6 +11,7 @@
 //
 //	fetchtrails -states                        # Geofabrik names of the states to download
 //	fetchtrails -osm us-trails.osm.pbf         # match and write trails.geojsonl.gz
+//	fetchtrails -official agency-lines.geojsonl.gz -merge trails.geojsonl.gz -out all-trails.geojsonl.gz
 package main
 
 import (
@@ -101,11 +102,19 @@ func main() {
 	states := flag.Bool("states", false, "print the Geofabrik names of the states with trail parks, then exit")
 	osmPath := flag.String("osm", "us-trails.osm.pbf", "OpenStreetMap extract of routes and paths")
 	out := flag.String("out", "trails.geojsonl.gz", "output GeoJSON lines (gzipped)")
+	officialPath := flag.String("official", "", "agency trail routes from cmd/fetchlayers; with -merge, use them over the OpenStreetMap routes")
+	merge := flag.String("merge", "", "OpenStreetMap routes written earlier by fetchtrails, for -official")
 	flag.Parse()
 
 	parks, err := readTrailParks(*potaPath, *prefix)
 	if err != nil {
 		log.Fatal(err)
+	}
+	if *officialPath != "" {
+		if err := useOfficial(parks, *officialPath, *merge, *out); err != nil {
+			log.Fatal(err)
+		}
+		return
 	}
 	if *states {
 		seen := map[string]bool{}

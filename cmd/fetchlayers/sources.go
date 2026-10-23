@@ -1,0 +1,114 @@
+package main
+
+import "strings"
+
+const (
+	blm    = "https://gis.blm.gov/arcgis/rest/services/"
+	nps    = "https://services1.arcgis.com/fBc8EJBxQRMcHlei/arcgis/rest/services/"
+	fws    = "https://services.arcgis.com/QVENGdaPbd4LUkLV/arcgis/rest/services/"
+	usace  = "https://services7.arcgis.com/n1YM8pTrFmm7L4hs/arcgis/rest/services/"
+	usbr   = "https://services1.arcgis.com/ixD30sld6F8MQ7V5/arcgis/rest/services/"
+	blmHub = "https://services1.arcgis.com/KbxwQRRfWyEYLgp4/arcgis/rest/services/"
+)
+
+// named gives every feature of a layer the same name, for layers that are one
+// trail and carry no name of their own.
+func named(n string) func(attrs) string { return func(attrs) string { return n } }
+
+// blmRec names a BLM recreation polygon the way POTA does: "Browns Park BLM
+// Recreation Management Area" for a special or extensive recreation
+// management area, "Red Cliffs Recreation Area BLM" otherwise.
+func blmRec(a attrs) string {
+	n := a.s("FET_NAME")
+	if n == "" {
+		return ""
+	}
+	switch strings.ToUpper(a.s("FET_SUBTYPE")) {
+	case "SRMA", "ERMA", "RMZ":
+		return n + " BLM Recreation Management Area"
+	}
+	return n + " BLM"
+}
+
+// sources are the agency layers, all public domain US government data. Each
+// is listed with its service so it can be checked in a browser.
+var sources = []source{
+	// Bureau of Land Management: about a quarter of the parks PAD-US
+	// doesn't draw are BLM recreation and herd management areas.
+	{Label: "BLM recreation areas", URL: blm + "recreation/BLM_Natl_Recs_poly/MapServer/0",
+		Name: blmRec, State: "ADMIN_ST", Manager: "BLM", Designation: "REC", Class: "BLM Recreation"},
+	{Label: "BLM herd management areas", URL: blm + "range/BLM_Natl_WHB/MapServer/0",
+		Name: field("HMA_NAME", "BLM Herd Management Area"), State: "ADMIN_ST", Manager: "BLM", Designation: "HMA", Class: "BLM Herd"},
+	{Label: "BLM areas of critical environmental concern", URL: blm + "lands/BLM_Natl_ACEC/MapServer/0",
+		Name: field("ACEC_NAME", "BLM"), State: "ADMIN_ST", Manager: "BLM", Designation: "ACEC", Class: "BLM ACEC"},
+	{Label: "BLM national monuments and conservation areas", URL: blm + "lands/BLM_Natl_NLCS_Generalized/FeatureServer/0",
+		Name: field("NCA_NAME", ""), State: "STATE_ADMN", Manager: "BLM", Designation: "NCA", Class: "BLM NLCS"},
+	{Label: "BLM wilderness", URL: blm + "lands/BLM_Natl_NLCS_Generalized/FeatureServer/1",
+		Name: field("NLCS_NAME", ""), State: "ADMIN_ST", Manager: "BLM", Designation: "WA", Class: "BLM NLCS"},
+	{Label: "BLM wilderness study areas", URL: blm + "lands/BLM_Natl_NLCS_Generalized/FeatureServer/2",
+		Name: field("NLCS_NAME", "Wilderness Study Area"), State: "ADMIN_ST", Manager: "BLM", Designation: "WSA", Class: "BLM NLCS"},
+
+	// Fish and Wildlife Service: the land each refuge and hatchery owns or
+	// holds an interest in, then the wider approved boundaries.
+	{Label: "FWS refuge and hatchery land", URL: fws + "FWSInterest_Simplified_Authoritative/FeatureServer/0",
+		Name: field("ORGNAME", ""), Loc: field("UNITNAME", ""), Manager: "FWS", Designation: "NWR", Class: "FWS Interest"},
+	{Label: "FWS approved boundaries", URL: fws + "FWSApproved_Authoritative/FeatureServer/0",
+		Name: field("ORGNAME", ""), Manager: "FWS", Designation: "NWR", Class: "FWS Approved"},
+
+	// Army Corps of Engineers recreation areas, named by lake with each
+	// area as the local piece; Reclamation recreation management areas.
+	{Label: "Army Corps recreation areas", URL: usace + "usace_recreation_areas/FeatureServer/0",
+		Name: field("RECPROJECTSITENAME", ""), Loc: field("RECPROJECTSITEAREANAME", ""), Manager: "USACE", Designation: "REC", Class: "USACE Recreation"},
+	{Label: "Reclamation recreation areas", URL: usbr + "ReclamationRecreationManagementAreas/FeatureServer/0",
+		Name: field("assetname", ""), Manager: "USBR", Designation: "REC", Class: "USBR Recreation"},
+
+	// National Park Service unit boundaries (newer than PAD-US for some
+	// units) and national heritage areas.
+	{Label: "NPS unit boundaries", URL: nps + "NPS_Land_Resources_Division_Boundary_and_Tract_Data_Service/FeatureServer/2",
+		Name: field("UNIT_NAME", ""), State: "STATE", Manager: "NPS", Designation: "NPS", Class: "NPS Boundary"},
+	{Label: "NPS national heritage areas", URL: nps + "National_Heritage_Areas_Updated2023/FeatureServer/0",
+		Name: field("RESNAME", ""), Manager: "NPS", Designation: "NHA", Class: "NPS Heritage Area"},
+
+	// Official routes of the national historic and scenic trails, mostly old
+	// roads and water routes that OpenStreetMap doesn't map as one trail.
+	{Label: "NPS Captain John Smith Chesapeake NHT", URL: nps + "CAJO_Captain_John_Smith_Chesapeake_NHT_Centerline_ln/FeatureServer/0",
+		Name: named("Captain John Smith Chesapeake National Historic Trail"), Manager: "NPS", Lines: true},
+	{Label: "NPS Star-Spangled Banner NHT", URL: nps + "Sta_Spangled_Banner_National_Historic_Trail_Official_Centerline/FeatureServer/0",
+		Name: named("Star-Spangled Banner National Historic Trail"), Manager: "NPS", Lines: true},
+	{Label: "NPS Selma to Montgomery NHT", URL: nps + "Selma_to_Montgomery_National_Historic_Trail_Official/FeatureServer/0",
+		Name: named("Selma to Montgomery National Historic Trail"), Manager: "NPS", Lines: true},
+	{Label: "NPS Oregon NHT", URL: nps + "OREG_NHT/FeatureServer/0",
+		Name: named("Oregon National Historic Trail"), Manager: "NPS", Lines: true},
+	{Label: "NPS California NHT", URL: nps + "CALI_NHT/FeatureServer/0",
+		Name: named("California National Historic Trail"), Manager: "NPS", Lines: true},
+	{Label: "NPS Mormon Pioneer NHT", URL: nps + "MOPI_NHT/FeatureServer/0",
+		Name: named("Mormon Pioneer National Historic Trail"), Manager: "NPS", Lines: true},
+	{Label: "NPS Pony Express NHT", URL: nps + "POEX_NHT/FeatureServer/0",
+		Name: named("Pony Express National Historic Trail"), Manager: "NPS", Lines: true},
+	{Label: "NPS Santa Fe NHT", URL: nps + "SAFE_NHT/FeatureServer/0",
+		Name: named("Santa Fe National Historic Trail"), Manager: "NPS", Lines: true},
+	{Label: "NPS Trail of Tears NHT", URL: nps + "TRTE_NHT/FeatureServer/0",
+		Name: named("Trail of Tears National Historic Trail"), Manager: "NPS", Lines: true},
+	{Label: "NPS Old Spanish NHT", URL: nps + "OLSP_NHT/FeatureServer/0",
+		Name: named("Old Spanish National Historic Trail"), Manager: "NPS", Lines: true},
+	{Label: "NPS El Camino Real de Tierra Adentro NHT", URL: nps + "ELCA_NHT/FeatureServer/0",
+		Name: named("El Camino Real de Tierra Adentro National Historic Trail"), Manager: "NPS", Lines: true},
+	{Label: "NPS El Camino Real de los Tejas NHT", URL: nps + "ELTE_NHT/FeatureServer/0",
+		Name: named("El Camino Real de los Tejas National Historic Trail"), Manager: "NPS", Lines: true},
+	{Label: "NPS Juan Bautista de Anza NHT", URL: nps + "JUBA_NHT_/FeatureServer/0",
+		Name: named("Juan Bautista de Anza National Historic Trail"), Manager: "NPS", Lines: true},
+	{Label: "NPS Overmountain Victory NHT", URL: nps + "Overmountain_Victory_National_Historic_Trail_Official_Temp/FeatureServer/0",
+		Name: named("Overmountain Victory National Historic Trail"), Manager: "NPS", Lines: true},
+	{Label: "BLM Iditarod NHT", URL: nps + "Iditarod_National_Historic_Trail_BLM_Official_Temp/FeatureServer/0",
+		Name: named("Iditarod National Historic Trail"), Manager: "BLM", Lines: true},
+	{Label: "NPS Lewis and Clark NHT", URL: nps + "Lewis_and_Clark_National_Historic_Trail_Congressionally_Designated_Route/FeatureServer/0",
+		Name: named("Lewis and Clark National Historic Trail"), Manager: "NPS", Lines: true},
+	{Label: "NPS Washington-Rochambeau NHT", URL: nps + "20200622_2016_URI_WARO_NST_trail_centerline_states_combined_web_mercator/FeatureServer/0",
+		Name: named("Washington-Rochambeau Revolutionary Route National Historic Trail"), Manager: "NPS", Lines: true},
+	{Label: "NPS Butterfield Overland NHT", URL: nps + "NTIR_OTHER_ButterfieldOverlandTrailSRS_ln/FeatureServer/0",
+		Name: named("Butterfield Overland National Historic Trail"), Manager: "NPS", Lines: true},
+	{Label: "NPS Civil War Defenses of Washington trail", URL: nps + "CWDW_Circuit_Trails_2023_NPS/FeatureServer/19",
+		Name: named("Civil War Defenses of Washington National Historic Trail"), Manager: "NPS", Lines: true},
+	{Label: "BLM Nez Perce NHT", URL: blmHub + "Nez_Perce_National_Historic_Trail_2/FeatureServer/0",
+		Name: named("Nez Perce National Historic Trail"), Manager: "BLM", Lines: true},
+}

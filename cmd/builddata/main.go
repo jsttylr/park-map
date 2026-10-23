@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"maps"
 	"math"
 	"os"
 	"sort"
@@ -55,6 +56,7 @@ type candidate struct {
 	Score, DistKm                          float64
 	Contains                               bool
 	Route                                  bool // a trail drawn along its OpenStreetMap route
+	Extra                                  bool // from an agency layer (cmd/fetchlayers), not PAD-US
 }
 
 // layerOrder breaks a tie between equally good outlines of the same unit,
@@ -354,13 +356,22 @@ func useTrails(path string, parks []*park) (int, error) {
 		score, _ := f.Properties["score"].(float64)
 		p.geom = geom
 		p.best = &candidate{
-			Key: "osm:" + prop(f, "osm"), Unit: prop(f, "osm_name"), Manager: "OSM",
+			Key: "osm:" + prop(f, "osm"), Unit: prop(f, "osm_name"), Manager: routeManager(f),
 			Designation: "TRAIL", Layer: "route", Score: score, Contains: true, Route: true,
 		}
 		n++
 	})
 	printLand(cs)
 	return n, err
+}
+
+// routeManager is who mapped a trail's route: the agency for an official
+// route, otherwise OpenStreetMap.
+func routeManager(f *geojson.Feature) string {
+	if m := prop(f, "manager"); m != "" {
+		return m
+	}
+	return "OSM"
 }
 
 func readPOTA(path, prefix string) ([]*park, error) {
@@ -417,6 +428,16 @@ const dominated = 0.25
 // with it falls back to its next candidate, or to no boundary, instead of
 // taking a whole national forest.
 func choose(parks []*park, show string) {
+	// The agency layers fill in parks PAD-US can't draw well; a park PAD-US
+	// already draws confidently keeps that outline.
+	for _, p := range parks {
+		for _, c := range p.cands {
+			if !c.Extra && c.confidence() == "high" {
+				maps.DeleteFunc(p.cands, func(_ string, c *candidate) bool { return c.Extra })
+				break
+			}
+		}
+	}
 	top := map[string]float64{}
 	who := map[string]*park{}
 	for _, p := range parks {
@@ -578,6 +599,7 @@ func score(f *geojson.Feature, layer string, mp orb.MultiPolygon, p *park) *cand
 		Key: key, Unit: name, Layer: prop(f, "FeatClass"), Score: s,
 		Manager:     prop(f, "Mang_Name"),
 		Designation: prop(f, "Des_Tp"),
+		Extra:       prop(f, "Source") != "",
 	}
 	if planar.MultiPolygonContains(mp, p.Pt) {
 		c.Contains = true

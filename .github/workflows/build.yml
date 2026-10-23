@@ -102,6 +102,34 @@ jobs:
         with:
           path: trails.geojsonl.gz
           key: trails-v4-${{ steps.month.outputs.m }}
+      # Agency maps that fill in parks PAD-US doesn't draw (BLM, FWS, Army
+      # Corps, Reclamation, NPS) and the official national historic trail
+      # routes. Cached for the month; a service that's down only leaves its
+      # parks as they were.
+      - name: Cached agency layers
+        id: agency
+        uses: actions/cache/restore@v4
+        with:
+          path: agency-*.geojsonl.gz
+          key: agency-v1-${{ steps.month.outputs.m }}
+      - name: Agency layers
+        id: fetchagency
+        if: steps.agency.outputs.cache-hit != 'true'
+        continue-on-error: true
+        timeout-minutes: 60
+        run: go run ./cmd/fetchlayers -areas agency-areas.geojsonl.gz -lines agency-lines.geojsonl.gz && ls -la agency-*.geojsonl.gz
+      - name: Save agency layers cache
+        if: steps.agency.outputs.cache-hit != 'true' && steps.fetchagency.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: agency-*.geojsonl.gz
+          key: agency-v1-${{ steps.month.outputs.m }}
+      - name: Use official trail routes over OpenStreetMap
+        run: |
+          if [ -s agency-lines.geojsonl.gz ]; then
+            M=""; if [ -s trails.geojsonl.gz ]; then M="-merge trails.geojsonl.gz"; fi
+            go run ./cmd/fetchtrails -pota all_parks_ext.csv -official agency-lines.geojsonl.gz $M -out trails-all.geojsonl.gz && mv trails-all.geojsonl.gz trails.geojsonl.gz
+          fi
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -111,7 +139,8 @@ jobs:
       - name: Match parks to boundaries
         run: |
           T=""; if [ -s trail-areas.geojsonl.gz ]; then T="-trails trail-areas.geojsonl.gz"; fi
-          mkdir -p data && go run ./cmd/builddata -pota all_parks_ext.csv -out data/us-parks.geojson.gz -report report.csv $T -show US-10139,US-4526,US-0171,US-5730 padus.geojsonl.gz
+          A=""; if [ -s agency-areas.geojsonl.gz ]; then A="agency-areas.geojsonl.gz"; fi
+          mkdir -p data && go run ./cmd/builddata -pota all_parks_ext.csv -out data/us-parks.geojson.gz -report report.csv $T -show US-10139,US-4526,US-0171,US-5730,US-5751,US-0573 padus.geojsonl.gz $A
       - name: Download SOTA summits and sotl.as activation zones
         env:
           GH_TOKEN: ${{ github.token }}
