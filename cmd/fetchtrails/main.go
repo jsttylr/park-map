@@ -1,19 +1,22 @@
-// Command fetchtrails finds the route of every US POTA trail park in
-// OpenStreetMap, through the Overpass API, and writes each one's lines as
-// gzipped GeoJSON lines for scripts/buffer_trails.py to widen into an area.
+// Command fetchtrails finds the route of every US POTA trail park in an
+// OpenStreetMap extract and writes each one's lines as gzipped GeoJSON lines
+// for scripts/buffer_trails.py to widen into an area.
 //
-// It first lists every named hiking, biking, riding and historic route around
-// the trail parks, a few big queries by region, and matches each park to the
-// route near its pin whose name best matches the park's, falling back to named
-// paths near the pin. It climbs to the whole trail when that route is one
-// section of a longer one (the Appalachian Trail is a route per state), and
-// downloads only the chosen routes' lines.
+// The extract is the states' Geofabrik files cut down by osmium to route
+// relations (hiking, biking, riding, historic and so on) and paths; see the
+// build workflow. Each trail park takes the route near its pin whose name best
+// matches the park's, climbing to the whole trail when that route is one
+// section of a longer one (the Appalachian Trail is a route per state), or,
+// with no such route, the paths near its pin that share its name.
+//
+//	fetchtrails -states                        # Geofabrik names of the states to download
+//	fetchtrails -osm us-trails.osm.pbf         # match and write trails.geojsonl.gz
 package main
 
 import (
 	"bufio"
-	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/csv"
 	"encoding/json"
 	"flag"
@@ -21,262 +24,445 @@ import (
 	"io"
 	"log"
 	"math"
-	"net/http"
-	"net/url"
 	"os"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/jsttylr/park-map/internal/match"
 	"github.com/paulmach/orb"
 	"github.com/paulmach/orb/geojson"
+	"github.com/paulmach/osm"
+	"github.com/paulmach/osm/osmpbf"
 )
 
 const (
-	nearKm   = 5     // a route this close to the pin is preferred
-	farKm    = 25    // how far from the pin a route may be to be the park's
-	pathsM   = 5000  // how far from the pin to look for named paths
-	gatherM  = 40000 // how far to gather paths that share the chosen name
+	nearKm   = 5  // a route this close to the pin is preferred; paths must be this close
+	farKm    = 25 // how far from the pin a route may be to be the park's
+	gatherKm = 40 // how far from the pin to gather paths that share the chosen name
 	minScore = 0.5
-	tileDeg  = 5 // routes are listed in tiles this many degrees on a side
 )
 
 // routeTypes are the kinds of route relation a trail park can be.
-const routeTypes = `^(hiking|foot|walking|bicycle|mtb|horse|historic|canoe|ski|inline_skates|running|fitness_trail)$`
+var routeTypes = map[string]bool{
+	"hiking": true, "foot": true, "walking": true, "bicycle": true, "mtb": true, "horse": true,
+	"historic": true, "canoe": true, "ski": true, "inline_skates": true, "running": true, "fitness_trail": true,
+}
 
-var endpoints = []string{
-	"https://overpass-api.de/api/interpreter",
-	"https://overpass.private.coffee/api/interpreter",
+// geofabrik names each state's extract at download.geofabrik.de/north-america/us/.
+var geofabrik = map[string]string{
+	"AL": "alabama", "AK": "alaska", "AZ": "arizona", "AR": "arkansas", "CA": "california",
+	"CO": "colorado", "CT": "connecticut", "DE": "delaware", "DC": "district-of-columbia",
+	"FL": "florida", "GA": "georgia", "HI": "hawaii", "ID": "idaho", "IL": "illinois",
+	"IN": "indiana", "IA": "iowa", "KS": "kansas", "KY": "kentucky", "LA": "louisiana",
+	"ME": "maine", "MD": "maryland", "MA": "massachusetts", "MI": "michigan", "MN": "minnesota",
+	"MS": "mississippi", "MO": "missouri", "MT": "montana", "NE": "nebraska", "NV": "nevada",
+	"NH": "new-hampshire", "NJ": "new-jersey", "NM": "new-mexico", "NY": "new-york",
+	"NC": "north-carolina", "ND": "north-dakota", "OH": "ohio", "OK": "oklahoma", "OR": "oregon",
+	"PA": "pennsylvania", "RI": "rhode-island", "SC": "south-carolina", "SD": "south-dakota",
+	"TN": "tennessee", "TX": "texas", "UT": "utah", "VT": "vermont", "VA": "virginia",
+	"WA": "washington", "WV": "west-virginia", "WI": "wisconsin", "WY": "wyoming",
 }
 
 type park struct {
 	Ref, Name, Loc string
-	Lat, Lon       float64
+	Pt             orb.Point
 }
 
-type element struct {
-	Type   string            `json:"type"`
-	ID     int64             `json:"id"`
-	Tags   map[string]string `json:"tags"`
-	Bounds *struct {
-		MinLat float64 `json:"minlat"`
-		MinLon float64 `json:"minlon"`
-		MaxLat float64 `json:"maxlat"`
-		MaxLon float64 `json:"maxlon"`
-	} `json:"bounds"`
-	Geometry []struct {
-		Lat float64 `json:"lat"`
-		Lon float64 `json:"lon"`
-	} `json:"geometry"`
-}
-
-type found struct {
-	p       *park
-	kind    string // "relation" or "paths"
+type route struct {
 	id      int64
 	name    string
-	score   float64
-	lines   orb.MultiLineString
-	reason  string
-	climbed []string
+	ways    []int64
+	subs    []int64
+	parents []int64
+}
+
+type way struct {
+	name  string
+	nodes []int64
+}
+
+type result struct {
+	p      *park
+	kind   string // "relation" or "paths"
+	id     int64
+	name   string
+	score  float64
+	via    string
+	lines  orb.MultiLineString
+	reason string
 }
 
 func main() {
 	potaPath := flag.String("pota", "all_parks_ext.csv", "POTA park list CSV")
 	prefix := flag.String("prefix", "US-", "park reference prefix to include")
+	states := flag.Bool("states", false, "print the Geofabrik names of the states with trail parks, then exit")
+	osmPath := flag.String("osm", "us-trails.osm.pbf", "OpenStreetMap extract of routes and paths")
 	out := flag.String("out", "trails.geojsonl.gz", "output GeoJSON lines (gzipped)")
-	only := flag.String("only", "", "comma-separated references to fetch (default all trail parks)")
-	workers := flag.Int("workers", 2, "parallel Overpass requests")
-	resume := flag.Bool("resume", false, "keep the parks already in -out and look up only the rest")
-	deadline := flag.Duration("deadline", 0, "stop starting new lookups after this long, so a partial result is still saved")
-	server := flag.String("overpass", "", "Overpass API URL to use instead of the public ones")
 	flag.Parse()
-	if *server != "" {
-		endpoints = []string{*server}
-	}
 
 	parks, err := readTrailParks(*potaPath, *prefix)
 	if err != nil {
 		log.Fatal(err)
 	}
-	if *only != "" {
-		want := map[string]bool{}
-		for _, r := range strings.Split(*only, ",") {
-			want[strings.TrimSpace(r)] = true
-		}
-		var keep []*park
+	if *states {
+		seen := map[string]bool{}
 		for _, p := range parks {
-			if want[p.Ref] {
-				keep = append(keep, p)
+			for _, s := range strings.Split(p.Loc, ",") {
+				if g := geofabrik[strings.TrimPrefix(strings.TrimSpace(s), "US-")]; g != "" && !seen[g] {
+					seen[g] = true
+					fmt.Println(g)
+				}
 			}
 		}
-		parks = keep
+		return
 	}
-	kept := map[string][]byte{}
-	if *resume {
-		if kept, err = readKept(*out); err != nil {
-			log.Printf("nothing to resume from: %v", err)
-		}
-	}
-	var todo []*park
-	for _, p := range parks {
-		if kept[p.Ref] == nil {
-			todo = append(todo, p)
-		}
-	}
-	log.Printf("%d trail parks, %d already looked up, %d to look up", len(parks), len(parks)-len(todo), len(todo))
-
 	start := time.Now()
-	routes, tileErr := listRoutes(todo)
-	log.Printf("%d named routes listed in %v", len(routes), time.Since(start).Round(time.Second))
+	log.Printf("%d trail parks", len(parks))
 
-	results := make([]*found, len(todo))
-	next := make(chan int)
-	var wg sync.WaitGroup
-	for w := 0; w < *workers; w++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for i := range next {
-				if *deadline > 0 && time.Since(start) > *deadline {
-					continue // left for the next run
-				}
-				t := time.Now()
-				r := fetch(todo[i], routes, tileErr)
-				results[i] = r
-				what := r.reason
-				if len(r.lines) > 0 {
-					what = fmt.Sprintf("%s %d %q, %d lines", r.kind, r.id, r.name, len(r.lines))
-				}
-				log.Printf("%s %s: %s (%v)", r.p.Ref, r.p.Name, what, time.Since(t).Round(time.Second))
-			}
-		}()
-	}
-	for i := range todo {
-		next <- i
-		if (i+1)%25 == 0 {
-			log.Printf("%d of %d parks in %v", i+1, len(todo), time.Since(start).Round(time.Second))
+	// Parks by the distinctive words of their names, so a route or path name
+	// is only compared with parks it shares a word with.
+	byWord := map[string][]*park{}
+	for _, p := range parks {
+		for _, w := range match.Distinctive(p.Name) {
+			byWord[w] = append(byWord[w], p)
 		}
 	}
-	close(next)
-	wg.Wait()
+	type cand struct {
+		id    int64
+		score float64
+	}
+	matches := func(name string) []*park {
+		seen := map[*park]bool{}
+		var out []*park
+		for _, w := range match.Distinctive(name) {
+			for _, p := range byWord[w] {
+				if !seen[p] && match.SharesName(p.Name, name) && match.Similarity(p.Name, name) >= minScore {
+					seen[p] = true
+					out = append(out, p)
+				}
+			}
+		}
+		return out
+	}
 
-	tmp := *out + ".tmp"
-	f, err := os.Create(tmp)
+	// Pass 1: route relations, and which parks each one's name matches.
+	routes := map[int64]*route{}
+	routeCands := map[*park][]cand{}
+	err = scan(*osmPath, func(sc *osmpbf.Scanner) { sc.SkipNodes, sc.SkipWays = true, true }, func(o osm.Object) {
+		r, ok := o.(*osm.Relation)
+		if !ok || !routeTypes[r.Tags.Find("route")] {
+			return
+		}
+		rt := &route{id: int64(r.ID), name: r.Tags.Find("name")}
+		for _, m := range r.Members {
+			switch m.Type {
+			case osm.TypeWay:
+				rt.ways = append(rt.ways, m.Ref)
+			case osm.TypeRelation:
+				rt.subs = append(rt.subs, m.Ref)
+			}
+		}
+		routes[rt.id] = rt
+		if rt.name == "" {
+			return
+		}
+		for _, p := range matches(rt.name) {
+			routeCands[p] = append(routeCands[p], cand{rt.id, match.Similarity(p.Name, rt.name)})
+		}
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
-	gz := gzip.NewWriter(f)
-	w := bufio.NewWriter(gz)
-	drawn, none := 0, 0
-	for _, p := range parks {
-		if line := kept[p.Ref]; line != nil {
-			w.Write(line)
-			w.WriteString("\n")
-			if bytes.Contains(line, []byte(`"geometry":null`)) {
-				none++
-			} else {
-				drawn++
+	for _, rt := range routes {
+		for _, s := range rt.subs {
+			if c := routes[s]; c != nil {
+				c.parents = append(c.parents, rt.id)
 			}
 		}
 	}
-	byKind := map[string]int{}
-	var missing []*found
-	unchecked := 0
-	for _, r := range results {
-		if r == nil {
-			unchecked++
-			continue
-		}
-		if len(r.lines) == 0 {
-			missing = append(missing, r)
-			if strings.HasPrefix(r.reason, "Overpass:") {
-				unchecked++
-				continue // try again next run
+	log.Printf("pass 1: %d routes, %d parks with a route of a matching name (%v)", len(routes), len(routeCands), time.Since(start).Round(time.Second))
+
+	// Climb from a section to the whole trail: a parent route whose name
+	// matches about as well ("Appalachian Trail" over "Appalachian Trail -
+	// Virginia") stands for it.
+	climbed := map[*park]map[int64]string{} // whole trail -> section it was reached from
+	needWays := map[int64]bool{}
+	for p, cs := range routeCands {
+		climbed[p] = map[int64]string{}
+		for _, c := range cs {
+			id, via := c.id, ""
+			for range 4 {
+				var up *route
+				best := c.score - 0.1
+				for _, pid := range routes[id].parents {
+					pr := routes[pid]
+					if pr == nil || pr.name == "" || !match.SharesName(p.Name, pr.name) {
+						continue
+					}
+					if s := match.Similarity(p.Name, pr.name); s >= best {
+						up, best = pr, s
+					}
+				}
+				if up == nil {
+					break
+				}
+				via, id = routes[id].name, up.id
 			}
-			// Remember a park with no route so the next run skips it too.
-			b, _ := json.Marshal(map[string]any{"type": "Feature", "geometry": nil,
-				"properties": map[string]any{"ref": r.p.Ref, "missing": r.reason}})
-			w.Write(b)
-			w.WriteString("\n")
-			none++
+			climbed[p][id] = via
+			for _, w := range wayIDs(routes, id) {
+				needWays[w] = true
+			}
+		}
+	}
+
+	// Pass 2: the ways of those routes, and named paths matching a park.
+	ways := map[int64]*way{}
+	pathCands := map[*park][]int64{}
+	err = scan(*osmPath, func(sc *osmpbf.Scanner) { sc.SkipNodes, sc.SkipRelations = true, true }, func(o osm.Object) {
+		w, ok := o.(*osm.Way)
+		if !ok {
+			return
+		}
+		id := int64(w.ID)
+		var ps []*park
+		name := w.Tags.Find("name")
+		if name != "" && isPath(w.Tags.Find("highway")) {
+			ps = matches(name)
+		}
+		if !needWays[id] && len(ps) == 0 {
+			return
+		}
+		wy := &way{name: name, nodes: make([]int64, len(w.Nodes))}
+		for i, n := range w.Nodes {
+			wy.nodes[i] = int64(n.ID)
+		}
+		ways[id] = wy
+		for _, p := range ps {
+			pathCands[p] = append(pathCands[p], id)
+		}
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	needNodes := map[int64]bool{}
+	for _, w := range ways {
+		for _, n := range w.nodes {
+			needNodes[n] = true
+		}
+	}
+	log.Printf("pass 2: %d ways, %d nodes needed (%v)", len(ways), len(needNodes), time.Since(start).Round(time.Second))
+
+	// Pass 3: where those ways' nodes are.
+	nodes := make(map[int64]orb.Point, len(needNodes))
+	err = scan(*osmPath, func(sc *osmpbf.Scanner) {
+		sc.SkipWays, sc.SkipRelations = true, true
+		sc.FilterNode = func(n *osm.Node) bool { return needNodes[int64(n.ID)] }
+	}, func(o osm.Object) {
+		if n, ok := o.(*osm.Node); ok {
+			nodes[int64(n.ID)] = orb.Point{n.Lon, n.Lat}
+		}
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("pass 3: %d nodes (%v)", len(nodes), time.Since(start).Round(time.Second))
+	line := func(id int64) orb.LineString {
+		w := ways[id]
+		if w == nil {
+			return nil
+		}
+		var l orb.LineString
+		for _, n := range w.nodes {
+			if pt, ok := nodes[n]; ok {
+				l = append(l, pt)
+			}
+		}
+		if len(l) < 2 {
+			return nil
+		}
+		return l
+	}
+
+	// Choose each park's route, or failing that its paths.
+	var results []*result
+	for _, p := range parks {
+		r := &result{p: p}
+		results = append(results, r)
+		bestRank := 0.0
+		for id, via := range climbed[p] {
+			rt := routes[id]
+			var ls orb.MultiLineString
+			for _, w := range wayIDs(routes, id) {
+				if l := line(w); l != nil {
+					ls = append(ls, l)
+				}
+			}
+			km := nearestKm(ls, p.Pt)
+			if km > farKm {
+				continue
+			}
+			s := match.Similarity(p.Name, rt.name)
+			rank := s
+			if km <= nearKm {
+				rank += 0.05
+			}
+			if rank > bestRank {
+				bestRank = rank
+				r.kind, r.id, r.name, r.score, r.via, r.lines = "relation", id, rt.name, s, via, ls
+			}
+		}
+		if r.lines != nil {
 			continue
 		}
-		byKind[r.kind]++
-		drawn++
-		ft := geojson.NewFeature(r.lines)
-		ft.Properties["ref"] = r.p.Ref
-		ft.Properties["osm"] = fmt.Sprintf("%s/%d", r.kind, r.id)
-		ft.Properties["osm_name"] = r.name
-		ft.Properties["score"] = r.score
-		b, err := json.Marshal(ft)
-		if err != nil {
-			log.Fatal(err)
+		// Named paths: the best-named one near the pin, then every path of
+		// that name around it.
+		var best string
+		bestScore := 0.0
+		for _, id := range pathCands[p] {
+			l := line(id)
+			if l == nil {
+				continue
+			}
+			name := ways[id].name
+			if s := match.Similarity(p.Name, name); s > bestScore && nearestKm(orb.MultiLineString{l}, p.Pt) <= nearKm {
+				best, bestScore, r.id = name, s, id
+			}
 		}
-		w.Write(b)
-		w.WriteString("\n")
+		if best == "" {
+			r.reason = "no route or path of a matching name"
+			if len(routeCands[p]) > 0 || len(pathCands[p]) > 0 {
+				r.reason = fmt.Sprintf("routes or paths of a matching name, but not near the pin (%d routes, %d paths)", len(routeCands[p]), len(pathCands[p]))
+			}
+			continue
+		}
+		for _, id := range pathCands[p] {
+			if l := line(id); l != nil && ways[id].name == best && nearestKm(orb.MultiLineString{l}, p.Pt) <= gatherKm {
+				r.lines = append(r.lines, l)
+			}
+		}
+		r.kind, r.name, r.score = "paths", best, bestScore
+	}
+
+	if err := write(*out, results); err != nil {
+		log.Fatal(err)
+	}
+	drawn := 0
+	var missing []*result
+	for _, r := range results {
+		if r.lines == nil {
+			missing = append(missing, r)
+			continue
+		}
+		drawn++
 		km := 0.0
 		for _, l := range r.lines {
 			km += lengthKm(l)
 		}
-		climb := ""
-		if len(r.climbed) > 0 {
-			climb = " via " + strings.Join(r.climbed, " < ")
+		via := ""
+		if r.via != "" {
+			via = fmt.Sprintf(" (from %q)", r.via)
 		}
-		fmt.Printf("%s %s (%s) | %s %d %q%s (%.2f) %.0f km, %d lines\n",
-			r.p.Ref, r.p.Name, r.p.Loc, r.kind, r.id, r.name, climb, r.score, km, len(r.lines))
+		fmt.Printf("%s %s (%s) | %s %d %q%s %.2f, %.0f km, %d lines\n", r.p.Ref, r.p.Name, r.p.Loc, r.kind, r.id, r.name, via, r.score, km, len(r.lines))
 	}
-	if err := w.Flush(); err != nil {
-		log.Fatal(err)
-	}
-	if err := gz.Close(); err != nil {
-		log.Fatal(err)
-	}
-	f.Close()
-	if err := os.Rename(tmp, *out); err != nil {
-		log.Fatal(err)
-	}
-
 	sort.Slice(missing, func(i, j int) bool { return missing[i].p.Ref < missing[j].p.Ref })
-	fmt.Printf("\n== No route found this run (%d)\n", len(missing))
+	fmt.Printf("\n== No route found (%d)\n", len(missing))
 	for _, r := range missing {
 		fmt.Printf("%s %s (%s) | %s\n", r.p.Ref, r.p.Name, r.p.Loc, r.reason)
 	}
-	fmt.Printf("\n== Trail routes: %d of %d parks have one, %d have none, %d still to look up (this run: %d relations, %d named paths, %v)\n",
-		drawn, len(parks), none, unchecked, byKind["relation"], byKind["paths"], time.Since(start).Round(time.Second))
-	if unchecked > 0 {
-		os.Exit(3)
-	}
+	fmt.Printf("\n== Trail routes: %d of %d trail parks found in %v\n", drawn, len(parks), time.Since(start).Round(time.Second))
 }
 
-// readKept returns the saved line of every park in a previous output.
-func readKept(path string) (map[string][]byte, error) {
+// scan reads every object of an OSM PBF file, after setup sets what to skip.
+func scan(path string, setup func(*osmpbf.Scanner), fn func(osm.Object)) error {
 	f, err := os.Open(path)
 	if err != nil {
-		return map[string][]byte{}, err
+		return err
 	}
 	defer f.Close()
-	gz, err := gzip.NewReader(f)
-	if err != nil {
-		return map[string][]byte{}, err
-	}
-	kept := map[string][]byte{}
-	sc := bufio.NewScanner(gz)
-	sc.Buffer(make([]byte, 1<<20), 1<<30)
+	sc := osmpbf.New(context.Background(), f, runtime.GOMAXPROCS(0))
+	defer sc.Close()
+	setup(sc)
 	for sc.Scan() {
-		var ft struct {
-			Properties struct {
-				Ref string `json:"ref"`
-			} `json:"properties"`
+		fn(sc.Object())
+	}
+	return sc.Err()
+}
+
+// wayIDs returns the ways of a route and of the routes inside it.
+func wayIDs(routes map[int64]*route, id int64) []int64 {
+	var out []int64
+	seen := map[int64]bool{}
+	var walk func(int64)
+	walk = func(id int64) {
+		r := routes[id]
+		if r == nil || seen[id] {
+			return
 		}
-		if json.Unmarshal(sc.Bytes(), &ft) == nil && ft.Properties.Ref != "" {
-			kept[ft.Properties.Ref] = append([]byte(nil), sc.Bytes()...)
+		seen[id] = true
+		out = append(out, r.ways...)
+		for _, s := range r.subs {
+			walk(s)
 		}
 	}
-	return kept, sc.Err()
+	walk(id)
+	return out
+}
+
+func isPath(highway string) bool {
+	switch highway {
+	case "path", "footway", "cycleway", "bridleway", "track", "steps", "pedestrian":
+		return true
+	}
+	return false
+}
+
+// nearestKm is how far a point is from the nearest vertex of some lines.
+func nearestKm(ls orb.MultiLineString, pt orb.Point) float64 {
+	best := math.Inf(1)
+	for _, l := range ls {
+		for _, q := range l {
+			best = math.Min(best, distKm(q, pt))
+		}
+	}
+	return best
+}
+
+// write saves each park found with its lines, and each park not found with
+// no geometry and the reason, for the report.
+func write(path string, results []*result) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	gz := gzip.NewWriter(f)
+	w := bufio.NewWriter(gz)
+	for _, r := range results {
+		var b []byte
+		if r.lines == nil {
+			b, err = json.Marshal(map[string]any{"type": "Feature", "geometry": nil,
+				"properties": map[string]any{"ref": r.p.Ref, "missing": r.reason}})
+		} else {
+			ft := geojson.NewFeature(r.lines)
+			ft.Properties["ref"] = r.p.Ref
+			ft.Properties["osm"] = fmt.Sprintf("%s/%d", r.kind, r.id)
+			ft.Properties["osm_name"] = r.name
+			ft.Properties["score"] = r.score
+			b, err = json.Marshal(ft)
+		}
+		if err != nil {
+			return err
+		}
+		w.Write(b)
+		w.WriteString("\n")
+	}
+	if err := w.Flush(); err != nil {
+		return err
+	}
+	return gz.Close()
 }
 
 func readTrailParks(path, prefix string) ([]*park, error) {
@@ -317,231 +503,9 @@ func readTrailParks(path, prefix string) ([]*park, error) {
 		if err1 != nil || err2 != nil {
 			continue
 		}
-		parks = append(parks, &park{Ref: ref, Name: name, Loc: rec[col["locationDesc"]], Lat: lat, Lon: lon})
+		parks = append(parks, &park{Ref: ref, Name: name, Loc: rec[col["locationDesc"]], Pt: orb.Point{lon, lat}})
 	}
 	return parks, nil
-}
-
-// tileOf names the listing tile a point falls in.
-func tileOf(lat, lon float64) [2]int {
-	return [2]int{int(math.Floor(lat / tileDeg)), int(math.Floor(lon / tileDeg))}
-}
-
-// tilesNear returns the tiles within farKm of a park's pin.
-func tilesNear(p *park) map[[2]int]bool {
-	d := farKm / 111.0
-	out := map[[2]int]bool{}
-	for _, dl := range []float64{-d, d} {
-		for _, dn := range []float64{-d / math.Cos(p.Lat*math.Pi/180), d / math.Cos(p.Lat*math.Pi/180)} {
-			out[tileOf(p.Lat+dl, p.Lon+dn)] = true
-		}
-	}
-	return out
-}
-
-// listRoutes lists the named routes in every tile near a park, without
-// their lines. Tiles the server couldn't list are returned with their error.
-func listRoutes(parks []*park) ([]element, map[[2]int]error) {
-	tiles := map[[2]int]bool{}
-	for _, p := range parks {
-		for t := range tilesNear(p) {
-			tiles[t] = true
-		}
-	}
-	var mu sync.Mutex
-	var routes []element
-	seen := map[int64]bool{}
-	errs := map[[2]int]error{}
-	next := make(chan [2]int)
-	var wg sync.WaitGroup
-	for w := 0; w < 2; w++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for t := range next {
-				s, w := float64(t[0]*tileDeg), float64(t[1]*tileDeg)
-				q := fmt.Sprintf(`[out:json][timeout:300];rel[type~"^(route|superroute)$"][route~"%s"][name](%g,%g,%g,%g);out tags bb;`,
-					routeTypes, s, w, s+tileDeg, w+tileDeg)
-				els, err := overpass(q)
-				mu.Lock()
-				if err != nil {
-					errs[t] = err
-					log.Printf("routes in tile %v: %v", t, err)
-				}
-				for _, e := range els {
-					if !seen[e.ID] {
-						seen[e.ID] = true
-						routes = append(routes, e)
-					}
-				}
-				mu.Unlock()
-			}
-		}()
-	}
-	for t := range tiles {
-		next <- t
-	}
-	close(next)
-	wg.Wait()
-	log.Printf("listed routes in %d tiles, %d failed", len(tiles), len(errs))
-	return routes, errs
-}
-
-// fetch finds one park's route and downloads its lines.
-func fetch(p *park, routes []element, tileErr map[[2]int]error) *found {
-	r := &found{p: p}
-	for t := range tilesNear(p) {
-		if err := tileErr[t]; err != nil {
-			r.reason = "Overpass: " + err.Error()
-			return r
-		}
-	}
-	ll := fmt.Sprintf("%.6f,%.6f", p.Lat, p.Lon)
-	// Routes whose box comes within farKm of the pin, nearer ones first.
-	var cands []element
-	var chosen *element
-	bestRank := 0.0
-	for i, e := range routes {
-		km := boxKm(e, p)
-		if km > farKm {
-			continue
-		}
-		cands = append(cands, e)
-		name := e.Tags["name"]
-		s := match.Similarity(p.Name, name)
-		if s < minScore || !match.SharesName(p.Name, name) {
-			continue
-		}
-		rank := s
-		if km <= nearKm {
-			rank += 0.05
-		}
-		if rank > bestRank {
-			chosen, bestRank = &routes[i], rank
-		}
-	}
-	if chosen == nil {
-		// No route: named paths near the pin.
-		els, err := overpass(fmt.Sprintf(`[out:json][timeout:180];way(around:%d,%s)[highway~"^(path|footway|cycleway|bridleway|track|steps|pedestrian)$"][name];out tags;`, pathsM, ll))
-		if err != nil {
-			r.reason = "Overpass: " + err.Error()
-			return r
-		}
-		chosen = pick(p, els)
-		cands = append(cands, els...)
-	}
-	if chosen == nil {
-		r.reason = fmt.Sprintf("no route or path near the pin matches the name (%s)", closest(p, cands))
-		return r
-	}
-	c := *chosen
-	r.name, r.score = c.Tags["name"], match.Similarity(p.Name, c.Tags["name"])
-	if c.Type == "relation" {
-		r.kind, r.id = "relation", c.ID
-		// Climb to the whole trail when this route is one section of it.
-		for range 4 {
-			els, err := overpass(fmt.Sprintf(`[out:json][timeout:120];rel(%d);rel(br)[name];out tags;`, r.id))
-			if err != nil {
-				break
-			}
-			var up *element
-			for i, e := range els {
-				if s := match.Similarity(p.Name, e.Tags["name"]); s >= r.score-0.1 && match.SharesName(p.Name, e.Tags["name"]) {
-					if up == nil || s > match.Similarity(p.Name, up.Tags["name"]) {
-						up = &els[i]
-					}
-				}
-			}
-			if up == nil {
-				break
-			}
-			r.climbed = append(r.climbed, r.name)
-			r.id, r.name, r.score = up.ID, up.Tags["name"], match.Similarity(p.Name, up.Tags["name"])
-		}
-		els, err := overpass(fmt.Sprintf(`[out:json][timeout:600][maxsize:1073741824];rel(%d);>>;way._;out geom;`, r.id))
-		if err != nil {
-			r.reason = "Overpass: " + err.Error()
-			return r
-		}
-		r.lines = lines(els)
-	} else {
-		r.kind, r.id = "paths", c.ID
-		name := strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(c.Tags["name"])
-		els, err := overpass(fmt.Sprintf(`[out:json][timeout:300];way(around:%d,%s)[name="%s"];out geom;`, gatherM, ll, name))
-		if err != nil {
-			r.reason = "Overpass: " + err.Error()
-			return r
-		}
-		r.lines = lines(els)
-	}
-	if len(r.lines) == 0 {
-		r.reason = fmt.Sprintf("%s %d %q has no lines", r.kind, r.id, r.name)
-	}
-	return r
-}
-
-// pick returns the candidate whose name best matches the park's, preferring a
-// route relation over a lone path of about the same name.
-func pick(p *park, els []element) *element {
-	var best *element
-	bestRank := 0.0
-	for i, e := range els {
-		name := e.Tags["name"]
-		s := match.Similarity(p.Name, name)
-		if s < minScore || !match.SharesName(p.Name, name) {
-			continue
-		}
-		rank := s
-		if e.Type == "relation" {
-			rank += 0.1
-		}
-		if rank > bestRank {
-			best, bestRank = &els[i], rank
-		}
-	}
-	return best
-}
-
-// closest names the best-scoring candidate that wasn't good enough, for the log.
-func closest(p *park, els []element) string {
-	best, bs := "", 0.0
-	for _, e := range els {
-		if s := match.Similarity(p.Name, e.Tags["name"]); s > bs {
-			best, bs = e.Tags["name"], s
-		}
-	}
-	if best == "" {
-		return "nothing named nearby"
-	}
-	return fmt.Sprintf("closest %q %.2f", best, bs)
-}
-
-// boxKm is roughly how far a park's pin is from a route's bounding box.
-func boxKm(e element, p *park) float64 {
-	b := e.Bounds
-	if b == nil {
-		return math.Inf(1)
-	}
-	dy := math.Max(0, math.Max(b.MinLat-p.Lat, p.Lat-b.MaxLat)) * 111
-	dx := math.Max(0, math.Max(b.MinLon-p.Lon, p.Lon-b.MaxLon)) * 111 * math.Cos(p.Lat*math.Pi/180)
-	return math.Hypot(dx, dy)
-}
-
-func lines(els []element) orb.MultiLineString {
-	var out orb.MultiLineString
-	seen := map[int64]bool{}
-	for _, e := range els {
-		if e.Type != "way" || len(e.Geometry) < 2 || seen[e.ID] {
-			continue
-		}
-		seen[e.ID] = true
-		l := make(orb.LineString, len(e.Geometry))
-		for i, g := range e.Geometry {
-			l[i] = orb.Point{g.Lon, g.Lat}
-		}
-		out = append(out, l)
-	}
-	return out
 }
 
 func lengthKm(l orb.LineString) float64 {
@@ -558,45 +522,4 @@ func distKm(a, b orb.Point) float64 {
 	s1, s2 := math.Sin((la2-la1)/2), math.Sin((b[0]-a[0])*rad/2)
 	h := s1*s1 + math.Cos(la1)*math.Cos(la2)*s2*s2
 	return 2 * 6371 * math.Asin(math.Sqrt(h))
-}
-
-var client = &http.Client{Timeout: 6 * time.Minute}
-
-// overpass runs one query, waiting and retrying when the server is busy.
-func overpass(q string) ([]element, error) {
-	var last error
-	for try := 0; try < 4; try++ {
-		if try > 0 {
-			time.Sleep(time.Duration(15<<(try-1)) * time.Second)
-		}
-		ep := endpoints[try%len(endpoints)]
-		req, _ := http.NewRequest("POST", ep, strings.NewReader("data="+url.QueryEscape(q)))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		req.Header.Set("User-Agent", "park-map trail fetcher (github.com/jsttylr/park-map)")
-		resp, err := client.Do(req)
-		if err != nil {
-			last = err
-			continue
-		}
-		var body struct {
-			Elements []element `json:"elements"`
-			Remark   string    `json:"remark"`
-		}
-		err = json.NewDecoder(resp.Body).Decode(&body)
-		resp.Body.Close()
-		if resp.StatusCode != 200 {
-			last = fmt.Errorf("%s: %s", ep, resp.Status)
-			continue
-		}
-		if err != nil {
-			last = fmt.Errorf("%s: %v", ep, err)
-			continue
-		}
-		if strings.Contains(body.Remark, "runtime error") {
-			last = fmt.Errorf("%s: %s", ep, body.Remark)
-			continue
-		}
-		return body.Elements, nil
-	}
-	return nil, last
 }

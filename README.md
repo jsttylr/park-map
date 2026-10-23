@@ -104,7 +104,7 @@ Leave off `format=text` to get the same answer as JSON. This is the piece an inR
 | Idea and inspiration | [FieldQTH](https://fieldqth.app) by LX1MDA | No code or data used |
 | Park list and locations | [Parks on the Air](https://pota.app) ([all_parks_ext.csv](https://pota.app/all_parks_ext.csv)) | Published by POTA |
 | Park boundaries | U.S. Geological Survey (USGS) Gap Analysis Project, [Protected Areas Database of the United States (PAD-US) 4.1](https://www.usgs.gov/programs/gap-analysis-project/science/pad-us-data-overview), U.S. Geological Survey data release ([ScienceBase](https://www.sciencebase.gov/catalog/item/652d4fc5d34e44db0e2ee45e)) | Public domain |
-| Trail routes | © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, through the [Overpass API](https://overpass-api.de) | [ODbL](https://opendatacommons.org/licenses/odbl/); the trail areas in the image are a derived database under the same license |
+| Trail routes | © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, state extracts from [Geofabrik](https://download.geofabrik.de) | [ODbL](https://opendatacommons.org/licenses/odbl/); the trail areas in the image are a derived database under the same license |
 | Summit list | [Summits on the Air](https://www.sota.org.uk) ([summitslist.csv](https://storage.sota.org.uk/summitslist.csv)) | Published by SOTA |
 | Activation zones | [sotl.as](https://sotl.as) and its contributors, published by [OffARO/sota-az](https://github.com/OffARO/sota-az) | Activation zones © sotl.as contributors, free non-commercial use |
 | Map display | [MapLibre GL JS](https://maplibre.org) | BSD-3-Clause |
@@ -123,7 +123,7 @@ N-fer areas are the exact overlaps of the boundaries, worked out when the data i
 The `build` workflow on GitHub does it all:
 
 1. Reads PAD-US from the `padus-4.1` release (the USGS download sits behind a captcha, so the file was uploaded there by hand). If that file is missing it pages the USGS web service instead, which takes about half an hour.
-2. `cmd/fetchtrails` looks up each trail park's route in OpenStreetMap (cached for the month), and `scripts/buffer_trails.py` widens each route to 100 ft either side.
+2. The OpenStreetMap extract of each state with a trail park is downloaded from Geofabrik and cut down to routes and paths with osmium; `cmd/fetchtrails` matches each trail park to its route (cached for the month), and `scripts/buffer_trails.py` widens each route to 100 ft either side.
 3. `cmd/builddata` matches every active US POTA park to PAD-US boundaries, uses the trail areas for trail parks, and writes `us-parks.geojson.gz`.
 4. `cmd/buildsota` joins the SOTA summits list with the sotl.as activation zones for the US associations and writes `sota.geojson.gz`.
 5. `cmd/parkmap -selftest` loads both, works out the overlaps and prints sample lookups.

@@ -206,3 +206,15 @@ func IsTrail(name string) bool {
 	}
 	return false
 }
+
+// Distinctive returns the words of a name that pick out the place, leaving
+// out generic and weak ones, for finding names worth comparing.
+func Distinctive(name string) []string {
+	var out []string
+	for w := range core(Tokens(name)) {
+		if !weak[w] {
+			out = append(out, w)
+		}
+	}
+	return out
+}

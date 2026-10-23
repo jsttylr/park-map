@@ -73,24 +73,35 @@ jobs:
           key: padus-4.1-v2-${{ steps.month.outputs.m }}
       - name: Download POTA park list
         run: curl -fsSL -o all_parks_ext.csv https://pota.app/all_parks_ext.csv && wc -l all_parks_ext.csv
-      # Trail lookups are slow the first time, so each run saves what it
-      # found and the next run of the month only looks up the rest.
+      # Trail routes come from OpenStreetMap: each state with a trail park is
+      # downloaded from Geofabrik and cut down to routes and paths, then
+      # matched to the parks. Cached for the month.
       - name: Cached trail routes
+        id: trails
         uses: actions/cache/restore@v4
         with:
           path: trails.geojsonl.gz
-          key: trails-v2-${{ steps.month.outputs.m }}-${{ github.run_id }}
-          restore-keys: trails-v2-${{ steps.month.outputs.m }}-
+          key: trails-v3-${{ steps.month.outputs.m }}
       - name: Trail routes from OpenStreetMap
+        id: osm
+        if: steps.trails.outputs.cache-hit != 'true'
         continue-on-error: true
-        timeout-minutes: 110
-        run: go run ./cmd/fetchtrails -pota all_parks_ext.csv -out trails.geojsonl.gz -resume -deadline 90m
+        timeout-minutes: 90
+        run: |
+          sudo apt-get install -y -qq osmium-tool > /dev/null
+          for s in $(go run ./cmd/fetchtrails -pota all_parks_ext.csv -states); do
+            curl -fsSL --retry 3 -o state.osm.pbf "https://download.geofabrik.de/north-america/us/$s-latest.osm.pbf"
+            osmium tags-filter --overwrite -o "f-$s.osm.pbf" state.osm.pbf r/route=hiking,foot,walking,bicycle,mtb,horse,historic,canoe,ski,inline_skates,running,fitness_trail w/highway=path,footway,cycleway,bridleway
+            rm state.osm.pbf
+          done
+          osmium merge --overwrite -o us-trails.osm.pbf f-*.osm.pbf && rm f-*.osm.pbf && ls -la us-trails.osm.pbf
+          go run ./cmd/fetchtrails -pota all_parks_ext.csv -osm us-trails.osm.pbf -out trails.geojsonl.gz
       - name: Save trail routes cache
-        if: always() && hashFiles('trails.geojsonl.gz') != ''
+        if: steps.trails.outputs.cache-hit != 'true' && steps.osm.outcome == 'success'
         uses: actions/cache/save@v4
         with:
           path: trails.geojsonl.gz
-          key: trails-v2-${{ steps.month.outputs.m }}-${{ github.run_id }}
+          key: trails-v3-${{ steps.month.outputs.m }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
