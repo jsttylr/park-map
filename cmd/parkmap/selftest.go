@@ -1,7 +1,10 @@
 package main
 
 import (
+	"encoding/csv"
 	"fmt"
+	"os"
+	"strconv"
 	"sort"
 	"strings"
 	"time"
@@ -75,4 +78,22 @@ func runSelftest(s *places.Set, explain string) {
 		b, err := s.Tile(maptile.At(tc.pt, tc.z))
 		fmt.Printf("  z%-2d %-12s %7d bytes  %v  %v\n", tc.z, tc.name, len(b), time.Since(t).Round(time.Millisecond), err)
 	}
+}
+
+// writeNFer writes each park's n-fer count, for comparing builds.
+func writeNFer(s *places.Set, path string) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	w := csv.NewWriter(f)
+	w.Write([]string{"ref", "name", "loc", "nfer", "nfer_all"})
+	for _, p := range s.Places {
+		if p.Kind == places.Park {
+			w.Write([]string{p.Ref, p.Name, p.Loc, strconv.Itoa(p.NFer), strconv.Itoa(p.NFerAll)})
+		}
+	}
+	w.Flush()
+	return w.Error()
 }

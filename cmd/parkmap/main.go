@@ -40,6 +40,7 @@ func main() {
 	health := flag.Bool("healthcheck", false, "check that the server is answering, then exit")
 	selftest := flag.Bool("selftest", false, "load the data, print what was found, then exit")
 	explain := flag.String("explain", "", "with -selftest: comma-separated references to describe in detail")
+	nferReport := flag.String("nfer-report", "", "with -selftest: write each park's n-fer count to this CSV")
 	regionsOut := flag.String("write-regions", "", "work out the n-fer overlap patches, save them to this file, then exit")
 	flag.Parse()
 
@@ -87,6 +88,11 @@ func main() {
 
 	if *selftest {
 		runSelftest(set, *explain)
+		if *nferReport != "" {
+			if err := writeNFer(set, *nferReport); err != nil {
+				log.Fatal(err)
+			}
+		}
 		return
 	}
 

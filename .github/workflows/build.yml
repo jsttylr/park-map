@@ -125,7 +125,14 @@ jobs:
         run: go run ./cmd/parkmap -data data -write-regions data/nfer.geojson.gz
       - name: Load everything and print sample lookups
         timeout-minutes: 20
-        run: go run ./cmd/parkmap -data data -selftest -explain US-9906,US-9920,US-4556,US-10139,US-4526
+        run: go run ./cmd/parkmap -data data -selftest -explain US-9906,US-9920,US-4556,US-10139,US-4526 -nfer-report nfer.csv
+      # Temporary: the same with trails drawn as the band only, to compare n-fer counts.
+      - name: Band-only comparison
+        timeout-minutes: 30
+        run: |
+          T=""; if [ -s trail-areas.geojsonl.gz ]; then T="-trails trail-areas.geojsonl.gz"; fi
+          mkdir -p band && cp data/sota.geojson.gz band/ && go run ./cmd/builddata -pota all_parks_ext.csv -out band/us-parks.geojson.gz -report report-band.csv $T -trail-land band padus.geojsonl.gz > /dev/null
+          go run ./cmd/parkmap -data band -write-regions band/nfer.geojson.gz && go run ./cmd/parkmap -data band -selftest -nfer-report nfer-band.csv | grep -A3 "^Shenandoah 3-fer"
       - name: Output sizes
         run: ls -la padus.geojsonl.gz data report.csv
       - uses: actions/upload-artifact@v4
@@ -134,6 +141,7 @@ jobs:
           path: |
             data/
             report.csv
+            nfer*.csv
 
   docker:
     runs-on: ubuntu-latest
@@ -184,7 +192,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          mkdir r && cp report.csv r/ && cd r && git init -q -b reports && git add report.csv
+          mkdir r && cp report.csv nfer*.csv r/ && cd r && git init -q -b reports && git add *.csv
           git -c user.name=github-actions -c user.email=github-actions@users.noreply.github.com commit -qm "Match report for ${GITHUB_SHA::7}"
           git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}" reports
 
