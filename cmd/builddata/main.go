@@ -291,7 +291,7 @@ func main() {
 }
 
 // useTrails gives each trail park found in OpenStreetMap the area along its
-// route in place of any PAD-US outline: POTA counts a trail as the route and
+// route in place of its PAD-US outline: POTA counts a trail as the route and
 // 100 ft either side, not the land around it.
 func useTrails(path string, parks []*park) (int, error) {
 	byRef := map[string]*park{}
@@ -302,6 +302,11 @@ func useTrails(path string, parks []*park) (int, error) {
 	err := eachFeature(path, func(f *geojson.Feature, mp orb.MultiPolygon) {
 		p := byRef[prop(f, "ref")]
 		if p == nil {
+			return
+		}
+		// Land named after a trail ("Scioto Trail State Forest") keeps a
+		// good PAD-US outline; only the trail itself is drawn as a band.
+		if p.best.confidence() == "high" && !match.EndsInTrail(p.Name) {
 			return
 		}
 		score, _ := f.Properties["score"].(float64)

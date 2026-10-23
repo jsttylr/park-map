@@ -81,7 +81,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: trails.geojsonl.gz
-          key: trails-v3-${{ steps.month.outputs.m }}
+          key: trails-v4-${{ steps.month.outputs.m }}
       - name: Trail routes from OpenStreetMap
         id: osm
         if: steps.trails.outputs.cache-hit != 'true'
@@ -101,7 +101,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: trails.geojsonl.gz
-          key: trails-v3-${{ steps.month.outputs.m }}
+          key: trails-v4-${{ steps.month.outputs.m }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'

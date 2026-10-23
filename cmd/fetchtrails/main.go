@@ -139,7 +139,7 @@ func main() {
 		var out []*park
 		for _, w := range match.Distinctive(name) {
 			for _, p := range byWord[w] {
-				if !seen[p] && match.SharesName(p.Name, name) && match.Similarity(p.Name, name) >= minScore {
+				if !seen[p] && match.SharesName(p.Name, name) && !match.Conflicts(p.Name, name) && match.Similarity(p.Name, name) >= minScore {
 					seen[p] = true
 					out = append(out, p)
 				}
@@ -199,7 +199,7 @@ func main() {
 				best := c.score - 0.1
 				for _, pid := range routes[id].parents {
 					pr := routes[pid]
-					if pr == nil || pr.name == "" || !match.SharesName(p.Name, pr.name) {
+					if pr == nil || pr.name == "" || !match.SharesName(p.Name, pr.name) || match.Conflicts(p.Name, pr.name) {
 						continue
 					}
 					if s := match.Similarity(p.Name, pr.name); s >= best {

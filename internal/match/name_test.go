@@ -80,3 +80,38 @@ func TestCoreWithin(t *testing.T) {
 		t.Error("hatchery")
 	}
 }
+
+func TestConflicts(t *testing.T) {
+	for _, c := range []struct {
+		a, b string
+		want bool
+	}{
+		{"Moab Rim Trail BLM Recreation Management Area", "Hunter Rim Trail", true},
+		{"South Caineville Mesa Trail BLM Recreation Management Area", "North Caineville Mesa Trail", true},
+		{"Norwottuck Rail Trail State Trail", "Manhan Rail Trail", true},
+		{"Santa Fe National Historic Trail", "Santa Fe Drive", true},
+		{"Juan Bautista de Anza National Historic Trail", "Anza Trail", false},
+		{"Hart-Montague Trail State Park", "Hart-Montague Bicycle Trail", false},
+		{"Appalachian Trail National Scenic Trail", "Appalachian Trail", false},
+		{"Historic Columbia River Highway State Trail", "Historic Columbia River Highway State Trail", false},
+	} {
+		if got := Conflicts(c.a, c.b); got != c.want {
+			t.Errorf("Conflicts(%q, %q) = %v, want %v", c.a, c.b, got, c.want)
+		}
+	}
+}
+
+func TestEndsInTrail(t *testing.T) {
+	for name, want := range map[string]bool{
+		"Katy Trail State Park":                               false,
+		"Scioto Trail State Forest":                           false,
+		"Ice Age National Scenic Trail":                       true,
+		"Delta Heritage Trails":                               true,
+		"Ozark Highlands Trail (OHT) National Historic Trail": true,
+		"Bloody Shins Trail System":                           false,
+	} {
+		if got := EndsInTrail(name); got != want {
+			t.Errorf("EndsInTrail(%q) = %v, want %v", name, got, want)
+		}
+	}
+}

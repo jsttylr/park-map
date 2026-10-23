@@ -207,6 +207,57 @@ func IsTrail(name string) bool {
 	return false
 }
 
+// EndsInTrail reports whether a name's last word is "Trail" or "Trails"
+// ("Katy Trail", "Ice Age National Scenic Trail"), so the park is the trail
+// itself rather than land named after one ("Scioto Trail State Forest").
+func EndsInTrail(name string) bool {
+	if i := strings.Index(name, "("); i > 0 {
+		name = name[:i]
+	}
+	t := Tokens(name)
+	return len(t) > 0 && (t[len(t)-1] == "trail" || t[len(t)-1] == "trails")
+}
+
+// routeWords say what kind of route a trail is, not which one.
+var routeWords = map[string]bool{
+	"trail": true, "trails": true, "rail": true, "path": true, "greenway": true, "loop": true,
+	"spur": true, "system": true, "bicycle": true, "bike": true, "route": true, "blm": true,
+	"interpretive": true,
+}
+
+// roadWords mark a street rather than a trail ("Santa Fe Drive").
+var roadWords = map[string]bool{
+	"drive": true, "road": true, "street": true, "avenue": true, "highway": true, "boulevard": true,
+}
+
+// Conflicts reports whether two names that share a word still name different
+// places: each has a distinctive word the other lacks ("Moab Rim Trail" and
+// "Hunter Rim Trail", "South Caineville Mesa" and "North Caineville Mesa"),
+// or b is a road and a is not.
+func Conflicts(a, b string) bool {
+	words := func(s string) map[string]bool {
+		m := core(Tokens(s))
+		for w := range m {
+			if routeWords[w] {
+				delete(m, w)
+			}
+		}
+		return m
+	}
+	wa, wb := words(a), words(b)
+	onlyA, onlyB := false, false
+	for w := range wa {
+		onlyA = onlyA || !wb[w]
+	}
+	for w := range wb {
+		onlyB = onlyB || !wa[w]
+		if roadWords[w] && !wa[w] {
+			return true
+		}
+	}
+	return onlyA && onlyB
+}
+
 // Distinctive returns the words of a name that pick out the place, leaving
 // out generic and weak ones, for finding names worth comparing.
 func Distinctive(name string) []string {
