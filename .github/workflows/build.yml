@@ -111,7 +111,7 @@ jobs:
       - name: Match parks to boundaries
         run: |
           T=""; if [ -s trail-areas.geojsonl.gz ]; then T="-trails trail-areas.geojsonl.gz"; fi
-          mkdir -p data && go run ./cmd/builddata -pota all_parks_ext.csv -out data/us-parks.geojson.gz -report report.csv $T -show US-10139,US-4526,US-0171,US-5730 padus.geojsonl.gz
+          mkdir -p data && go run ./cmd/builddata -pota all_parks_ext.csv -out data/us-parks.geojson.gz -report report.csv $T -trail-land union -show US-10139,US-4526,US-0171,US-5730 padus.geojsonl.gz
       - name: Download SOTA summits and sotl.as activation zones
         env:
           GH_TOKEN: ${{ github.token }}

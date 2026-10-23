@@ -108,6 +108,7 @@ func main() {
 	report := flag.String("report", "report.csv", "output match report CSV")
 	show := flag.String("show", "", "comma-separated references whose candidates to print")
 	trails := flag.String("trails", "", "trail areas from scripts/buffer_trails.py (GeoJSON lines), used instead of PAD-US for those parks")
+	trailLand := flag.String("trail-land", "band", "for a trail park with a PAD-US outline too: band (only the 100 ft band) or union (the band and the land)")
 	flag.Parse()
 	layers := flag.Args()
 	if len(layers) == 0 {
@@ -255,7 +256,7 @@ func main() {
 	}
 
 	if *trails != "" {
-		n, err := useTrails(*trails, parks)
+		n, err := useTrails(*trails, parks, *trailLand == "union")
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -291,14 +292,15 @@ func main() {
 }
 
 // useTrails gives each trail park found in OpenStreetMap the area along its
-// route in place of its PAD-US outline: POTA counts a trail as the route and
-// 100 ft either side, not the land around it.
-func useTrails(path string, parks []*park) (int, error) {
+// route: POTA counts a trail as the route and 100 ft either side. With union,
+// a trail that also has PAD-US land keeps that land as well.
+func useTrails(path string, parks []*park, union bool) (int, error) {
 	byRef := map[string]*park{}
 	for _, p := range parks {
 		byRef[p.Ref] = p
 	}
 	n := 0
+	var cs []landVsBand
 	err := eachFeature(path, func(f *geojson.Feature, mp orb.MultiPolygon) {
 		p := byRef[prop(f, "ref")]
 		if p == nil {
@@ -309,14 +311,24 @@ func useTrails(path string, parks []*park) (int, error) {
 		if p.best.confidence() == "high" && !match.EndsInTrail(p.Name) {
 			return
 		}
+		geom := mp
+		if p.best.confidence() != "none" && len(p.geom) > 0 {
+			c := compareLand(p.geom, mp)
+			c.p, c.unit, c.manager, c.desig, c.layer = p, p.best.Unit, p.best.Manager, p.best.Designation, p.best.Layer
+			cs = append(cs, c)
+			if union {
+				geom = c.union
+			}
+		}
 		score, _ := f.Properties["score"].(float64)
-		p.geom = mp
+		p.geom = geom
 		p.best = &candidate{
 			Key: "osm:" + prop(f, "osm"), Unit: prop(f, "osm_name"), Manager: "OSM",
 			Designation: "TRAIL", Layer: "route", Score: score, Contains: true, Route: true,
 		}
 		n++
 	})
+	printLand(cs)
 	return n, err
 }
 
