@@ -95,11 +95,11 @@ func useOfficial(parks []*park, officialPath, merge, out string) error {
 		var best *official
 		bestScore := 0.0
 		for _, n := range names {
-			if !match.SharesName(p.Name, n) || match.Conflicts(p.Name, n) {
+			if !match.EndsInTrail(p.Name) || !match.SharesName(p.Name, n) || match.Conflicts(p.Name, n) {
 				continue
 			}
 			// Only the trail itself takes the route, not a park named
-			// after it ("Trail of Tears State Park"). Its pin can be well
+			// after it ("Trail of Tears State Forest"). Its pin can be well
 			// off a route across several states.
 			s := match.Similarity(p.Name, n)
 			if s < officialScore || s <= bestScore || nearestKm(routes[n].lines, p.Pt) > officialKm {
