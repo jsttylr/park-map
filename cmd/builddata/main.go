@@ -339,7 +339,7 @@ func useTrails(path string, parks []*park) (int, error) {
 		}
 		// Land named after a trail ("Scioto Trail State Forest") keeps a
 		// good PAD-US outline; only the trail itself is drawn as a band.
-		if p.best.Contains && p.best.confidence() == "high" && !match.EndsInTrail(p.Name) {
+		if p.best != nil && p.best.Contains && p.best.confidence() == "high" && !match.EndsInTrail(p.Name) {
 			return
 		}
 		geom := mp
