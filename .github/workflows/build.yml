@@ -111,7 +111,7 @@ jobs:
       - name: Match parks to boundaries
         run: |
           T=""; if [ -s trail-areas.geojsonl.gz ]; then T="-trails trail-areas.geojsonl.gz"; fi
-          mkdir -p data && go run ./cmd/builddata -pota all_parks_ext.csv -out data/us-parks.geojson.gz -report report.csv $T -trail-land union -show US-10139,US-4526,US-0171,US-5730 padus.geojsonl.gz
+          mkdir -p data && go run ./cmd/builddata -pota all_parks_ext.csv -out data/us-parks.geojson.gz -report report.csv $T -show US-10139,US-4526,US-0171,US-5730 padus.geojsonl.gz
       - name: Download SOTA summits and sotl.as activation zones
         env:
           GH_TOKEN: ${{ github.token }}
@@ -126,13 +126,14 @@ jobs:
       - name: Load everything and print sample lookups
         timeout-minutes: 20
         run: go run ./cmd/parkmap -data data -selftest -explain US-9906,US-9920,US-4556,US-10139,US-4526 -nfer-report nfer.csv
-      # Temporary: the same with trails drawn as the band only, to compare n-fer counts.
-      - name: Band-only comparison
+      # Temporary: build everything a second time to check the result is the same.
+      - name: Repeat build check
+        continue-on-error: true
         timeout-minutes: 30
         run: |
           T=""; if [ -s trail-areas.geojsonl.gz ]; then T="-trails trail-areas.geojsonl.gz"; fi
-          mkdir -p band && cp data/sota.geojson.gz band/ && go run ./cmd/builddata -pota all_parks_ext.csv -out band/us-parks.geojson.gz -report report-band.csv $T -trail-land band padus.geojsonl.gz > /dev/null
-          go run ./cmd/parkmap -data band -write-regions band/nfer.geojson.gz && go run ./cmd/parkmap -data band -selftest -nfer-report nfer-band.csv | grep -A3 "^Shenandoah 3-fer"
+          mkdir -p band && cp data/sota.geojson.gz band/ && go run ./cmd/builddata -pota all_parks_ext.csv -out band/us-parks.geojson.gz -report report-again.csv $T padus.geojsonl.gz > /dev/null
+          go run ./cmd/parkmap -data band -write-regions band/nfer.geojson.gz && go run ./cmd/parkmap -data band -selftest -nfer-report nfer-again.csv > /dev/null && cmp report.csv report-again.csv && cmp nfer.csv nfer-again.csv && echo identical
       - name: Output sizes
         run: ls -la padus.geojsonl.gz data report.csv
       - uses: actions/upload-artifact@v4

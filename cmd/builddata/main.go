@@ -56,6 +56,25 @@ type candidate struct {
 	Route                                  bool // a trail drawn along its OpenStreetMap route
 }
 
+// layerOrder breaks a tie between equally good outlines of the same unit,
+// which PAD-US often has once as the land the agency owns (Fee) and again as
+// the wider area it was authorized to buy (Proclamation). POTA counts only
+// public property, so the land owned wins. Without this the pick changed
+// from build to build.
+func layerOrder(layer string) int {
+	switch layer {
+	case "Fee":
+		return 0
+	case "Easement":
+		return 1
+	case "Designation":
+		return 2
+	case "Proclamation":
+		return 3
+	}
+	return 4
+}
+
 func (c *candidate) rank() float64 {
 	r := c.Score - c.DistKm*0.05
 	if c.Contains {
@@ -108,7 +127,6 @@ func main() {
 	report := flag.String("report", "report.csv", "output match report CSV")
 	show := flag.String("show", "", "comma-separated references whose candidates to print")
 	trails := flag.String("trails", "", "trail areas from scripts/buffer_trails.py (GeoJSON lines), used instead of PAD-US for those parks")
-	trailLand := flag.String("trail-land", "band", "for a trail park with a PAD-US outline too: band (only the 100 ft band) or union (the band and the land)")
 	flag.Parse()
 	layers := flag.Args()
 	if len(layers) == 0 {
@@ -256,7 +274,7 @@ func main() {
 	}
 
 	if *trails != "" {
-		n, err := useTrails(*trails, parks, *trailLand == "union")
+		n, err := useTrails(*trails, parks)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -292,9 +310,12 @@ func main() {
 }
 
 // useTrails gives each trail park found in OpenStreetMap the area along its
-// route: POTA counts a trail as the route and 100 ft either side. With union,
-// a trail that also has PAD-US land keeps that land as well.
-func useTrails(path string, parks []*park, union bool) (int, error) {
+// route. POTA rule 1.4 counts a trail that is a reference by itself as the
+// route and 100 ft either side, whatever land around it is protected, so a
+// trail ("Appalachian Trail National Scenic Trail") is only the band. A park
+// with a boundary that is a trail ("Katy Trail State Park") is its outline,
+// plus the band where PAD-US has only part of it.
+func useTrails(path string, parks []*park) (int, error) {
 	byRef := map[string]*park{}
 	for _, p := range parks {
 		byRef[p.Ref] = p
@@ -316,7 +337,7 @@ func useTrails(path string, parks []*park, union bool) (int, error) {
 			c := compareLand(p.geom, mp)
 			c.p, c.unit, c.manager, c.desig, c.layer = p, p.best.Unit, p.best.Manager, p.best.Designation, p.best.Layer
 			cs = append(cs, c)
-			if union {
+			if !match.EndsInTrail(p.Name) {
 				geom = c.union
 			}
 		}
@@ -405,7 +426,15 @@ func choose(parks []*park, show string) {
 		for _, c := range p.cands {
 			cs = append(cs, c)
 		}
-		sort.Slice(cs, func(i, j int) bool { return cs[i].rank() > cs[j].rank() })
+		sort.Slice(cs, func(i, j int) bool {
+			if ri, rj := cs[i].rank(), cs[j].rank(); ri != rj {
+				return ri > rj
+			}
+			if li, lj := layerOrder(cs[i].Layer), layerOrder(cs[j].Layer); li != lj {
+				return li < lj
+			}
+			return cs[i].Key < cs[j].Key
+		})
 		var first *candidate
 		for _, c := range cs {
 			if first == nil {
