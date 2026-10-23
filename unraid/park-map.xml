@@ -8,7 +8,7 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/jsttylr/park-map/issues</Support>
   <Project>https://github.com/jsttylr/park-map</Project>
-  <Overview>Map of US Parks on the Air parks with their real boundaries, plus SOTA summits and their activation zones. Filter to spots where you can activate two, three or more parks at once (n-fers), and click anywhere to see every park and summit at that point. Park outlines come from USGS PAD-US; activation zones are © sotl.as contributors.</Overview>
+  <Overview>Map of US Parks on the Air parks with their real boundaries, plus SOTA summits and their activation zones, for planning a trip and for finding out where you are in the field. Filter to spots where two, three or more parks overlap (n-fers) and click anywhere to see every park and summit at that point. Trails are drawn 100 ft either side of the route, as POTA counts them. An optional Garmin inReach gateway replies with the parks and summits at your position and can post POTA and SOTA spots. Park outlines come from USGS PAD-US, trail routes are © OpenStreetMap contributors, and activation zones are © sotl.as contributors.</Overview>
   <Category>Tools: Other:</Category>
   <WebUI>http://[IP]:[PORT:8075]/</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/jsttylr/park-map/main/unraid/park-map.xml</TemplateURL>
