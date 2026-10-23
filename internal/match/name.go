@@ -28,7 +28,7 @@ var generic = map[string]bool{
 	"fish": true, "hunting": true, "public": true, "access": true, "community": true,
 	"battlefield": true, "seashore": true, "lakeshore": true, "scenic": true, "wild": true,
 	"heritage": true, "corridor": true, "district": true, "metro": true, "metropark": true,
-	"habitat": true, "protection": true, "dedicated": true,
+	"habitat": true, "protection": true, "dedicated": true, "blm": true, "herd": true,
 }
 
 // Tokens returns the normalized words of a name with abbreviations expanded.

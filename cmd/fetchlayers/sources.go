@@ -55,10 +55,11 @@ var sources = []source{
 	{Label: "FWS approved boundaries", URL: fws + "FWSApproved_Authoritative/FeatureServer/0",
 		Name: field("ORGNAME", ""), Manager: "FWS", Designation: "NWR", Class: "FWS Approved"},
 
-	// Army Corps of Engineers recreation areas, named by lake with each
-	// area as the local piece; Reclamation recreation management areas.
+	// Army Corps of Engineers recreation areas, each by its own name (state
+	// parks on Corps lakes are often one of them; PAD-US has the lakes
+	// themselves), and Reclamation recreation management areas.
 	{Label: "Army Corps recreation areas", URL: usace + "usace_recreation_areas/FeatureServer/0",
-		Name: field("RECPROJECTSITENAME", ""), Loc: field("RECPROJECTSITEAREANAME", ""), Manager: "USACE", Designation: "REC", Class: "USACE Recreation"},
+		Name: field("RECPROJECTSITEAREANAME", ""), Manager: "USACE", Designation: "REC", Class: "USACE Recreation"},
 	{Label: "Reclamation recreation areas", URL: usbr + "ReclamationRecreationManagementAreas/FeatureServer/0",
 		Name: field("assetname", ""), Manager: "USBR", Designation: "REC", Class: "USBR Recreation"},
 

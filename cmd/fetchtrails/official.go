@@ -14,6 +14,11 @@ import (
 	"github.com/paulmach/orb/geojson"
 )
 
+const (
+	officialScore = 0.9
+	officialKm    = 300
+)
+
 // official is one agency's route for a trail, from cmd/fetchlayers.
 type official struct {
 	name, source, manager string
@@ -93,8 +98,11 @@ func useOfficial(parks []*park, officialPath, merge, out string) error {
 			if !match.SharesName(p.Name, n) || match.Conflicts(p.Name, n) {
 				continue
 			}
+			// Only the trail itself takes the route, not a park named
+			// after it ("Trail of Tears State Park"). Its pin can be well
+			// off a route across several states.
 			s := match.Similarity(p.Name, n)
-			if s < minScore || s <= bestScore || nearestKm(routes[n].lines, p.Pt) > farKm {
+			if s < officialScore || s <= bestScore || nearestKm(routes[n].lines, p.Pt) > officialKm {
 				continue
 			}
 			best, bestScore = routes[n], s

@@ -429,8 +429,11 @@ const dominated = 0.25
 // taking a whole national forest.
 func choose(parks []*park, show string) {
 	// The agency layers fill in parks PAD-US can't draw well; a park PAD-US
-	// already draws confidently keeps that outline.
+	// already draws confidently keeps that outline. An agency outline also
+	// needs a good name match, not just the pin inside it: a campground's
+	// pin sits inside some large BLM recreation area of another name.
 	for _, p := range parks {
+		maps.DeleteFunc(p.cands, func(_ string, c *candidate) bool { return c.Extra && c.Score < minHigh })
 		for _, c := range p.cands {
 			if !c.Extra && c.confidence() == "high" {
 				maps.DeleteFunc(p.cands, func(_ string, c *candidate) bool { return c.Extra })

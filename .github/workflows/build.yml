@@ -111,7 +111,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: agency-*.geojsonl.gz
-          key: agency-v1-${{ steps.month.outputs.m }}
+          key: agency-v2-${{ steps.month.outputs.m }}
       - name: Agency layers
         id: fetchagency
         if: steps.agency.outputs.cache-hit != 'true'
@@ -123,7 +123,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: agency-*.geojsonl.gz
-          key: agency-v1-${{ steps.month.outputs.m }}
+          key: agency-v2-${{ steps.month.outputs.m }}
       - name: Use official trail routes over OpenStreetMap
         run: |
           if [ -s agency-lines.geojsonl.gz ]; then
