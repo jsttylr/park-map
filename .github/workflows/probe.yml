@@ -8,38 +8,50 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Layers
+        shell: python3 {0}
         run: |
-          set +e
-          show() {
-            u=$1; w=${2:-1%3D1}
-            echo "== $u ($w)"
-            curl -sS -A "Mozilla/5.0" --max-time 60 "$u?f=json" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('name'), d.get('geometryType'), d.get('maxRecordCount'), [f['name'] for f in d.get('fields',[])], [(l['id'],l['name']) for l in d.get('layers',[])])" || true
-            curl -sS -A "Mozilla/5.0" --max-time 60 "$u/query?where=$w&returnCountOnly=true&f=json"; echo
-            curl -sS -A "Mozilla/5.0" --max-time 60 "$u/query?where=$w&outFields=*&returnGeometry=false&resultRecordCount=8&f=json" | python3 -c "import json,sys; d=json.load(sys.stdin); [print(' ',{k:v for k,v in f['attributes'].items() if v not in (None,'',' ') and not k.lower().startswith('shape')}) for f in d.get('features',[])]" || true
-          }
-          show https://services.arcgis.com/5bMc8SlGDYGINZr5/arcgis/rest/services/WMABoundaries/FeatureServer
-          show https://services.arcgis.com/5bMc8SlGDYGINZr5/arcgis/rest/services/WMABoundaries/FeatureServer/0
-          show https://gis.arkansas.gov/arcgis/rest/services/FEATURESERVICES/Boundaries/FeatureServer/37
-          show https://gis.arkansas.gov/arcgis/rest/services/FEATURESERVICES/Boundaries/FeatureServer/21
-          show https://gis.ardot.gov/referenced/rest/services/TPP_GISMapping/CORE_BASE_LAYERS/FeatureServer/0
-          show https://gis.ardot.gov/hosting/rest/services/Hosted/StateParks/FeatureServer/0
-          show https://imperialis.inhs.illinois.edu/arcgis/rest/services/Public/Owner_Parcel_Boundary/MapServer/0
-          show https://services.arcgis.com/b9DHj1BjfdLLFv11/arcgis/rest/services/INPC_Update_Holman_10_9_20/FeatureServer
-          show https://services6.arcgis.com/9QlSLDqa0P1cHLhu/arcgis/rest/services/GADNR_Managed_Lands/FeatureServer
-          show https://services6.arcgis.com/9QlSLDqa0P1cHLhu/arcgis/rest/services/GADNR_Managed_Lands/FeatureServer/0
-          show http://maps.dcnr.alabama.gov/adcnrweb/rest/services/VirtualAL/MapServer
-          show http://maps.dcnr.alabama.gov/adcnrweb/rest/services/VirtualAL/MapServer/2
-          show http://maps.dcnr.alabama.gov/adcnrweb/rest/services/VirtualAL/MapServer/3
-          show https://services7.arcgis.com/iEMmryaM5E3wkdnU/arcgis/rest/services/Alabama_Wildlife_Management_Areas/FeatureServer/0
-          show https://maris.mississippi.edu/server/rest/services/Vector/WildL_Areas/MapServer
-          show https://www.maris.state.ms.us/server/rest/services/Vector/WildL_Areas/MapServer
-          show https://services.arcgis.com/QVENGdaPbd4LUkLV/arcgis/rest/services/MAV_state_managed_lands_2021/FeatureServer/0
-          show https://gis.ohiodnr.gov/arcgis/rest/services/OIT_Services/ODNR_ODNR_Lands_External/MapServer/0
-          show https://services5.arcgis.com/ajRlmtxbNBjZggOT/arcgis/rest/services/ODNR_Lands/FeatureServer/0
-          show https://services.arcgis.com/acgZYxoN5Oj8pDLa/arcgis/rest/services/DEV_-_SCDNR_Public_Lands_Viewer/FeatureServer
-          show https://services3.arcgis.com/YgrExeJfxG5F4At7/ArcGIS/rest/services/Managed_Areas_All/FeatureServer/0
-          show https://services1.arcgis.com/k8yxvICm95iIFicb/arcgis/rest/services/State_Game_Lands_Boundaries/FeatureServer/0
-          show https://enterprise.firstmap.delaware.gov/arcgis/rest/services/Society/DE_State_Lands/FeatureServer/0
-          show https://gisdata.in.gov/server/rest/services/Hosted/ManagedLands_DNR_Open/FeatureServer/0
-          show https://gisdata.in.gov/server/rest/services/Hosted/NaturePreservesCoastalArea/FeatureServer/0
-          show https://gisblue.mdc.mo.gov/arcgis/rest/services/Discover_Nature/MDC_Administrative_Areas/MapServer/5
+          import json, urllib.request, urllib.parse
+          def get(u, **q):
+              if q: u += "?" + urllib.parse.urlencode(q)
+              try:
+                  return json.load(urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0"}), timeout=60))
+              except Exception as e:
+                  return {"err": str(e)[:200]}
+          def info(u):
+              d = get(u, f="json")
+              print("==", u, d.get("err") or d.get("error") or "", d.get("name"), [f["name"] for f in d.get("fields", [])], [(l["id"], l["name"]) for l in d.get("layers", [])][:40], [s["name"] for s in d.get("services", [])][:200])
+          def group(u, field, where="1=1"):
+              stats = json.dumps([{"statisticType": "count", "onStatisticField": field, "outStatisticFieldName": "n"}])
+              d = get(u + "/query", where=where, groupByFieldsForStatistics=field, outStatistics=stats, f="json")
+              print("  by", field, d.get("err") or d.get("error") or sorted(((f["attributes"].get(field), f["attributes"]["n"]) for f in d.get("features", [])), key=lambda x: -x[1])[:60])
+          def sample(u, where="1=1", n=8, fields="*"):
+              d = get(u + "/query", where=where, outFields=fields, returnGeometry="false", resultRecordCount=n, f="json")
+              for f in d.get("features", []): print("   ", {k: v for k, v in f["attributes"].items() if v not in (None, "", " ") and not k.lower().startswith("shape") and k.lower() not in ("globalid",)})
+              if "features" not in d: print("   ", d)
+          def search(q):
+              d = get("https://www.arcgis.com/sharing/rest/search", q=q, num=25, f="json")
+              print("## search", q)
+              for r in d.get("results", []): print("   ", r["title"], "|", r["owner"], "|", r.get("url"))
+          ar = "https://gis.ardot.gov/referenced/rest/services/TPP_GISMapping/CORE_BASE_LAYERS/FeatureServer/0"
+          group(ar, "Type"); group(ar, "Type2")
+          sample(ar, "Type NOT LIKE '%City%' AND Type NOT LIKE '%Local%'", 15)
+          ga = "https://services6.arcgis.com/9QlSLDqa0P1cHLhu/arcgis/rest/services/GADNR_Managed_Lands/FeatureServer/0"
+          group(ga, "MANAGING_A"); sample(ga, "NAME IS NOT NULL", 25, "NAME,MANAGING_A")
+          oh = "https://services5.arcgis.com/ajRlmtxbNBjZggOT/arcgis/rest/services/ODNR_Lands/FeatureServer/0"
+          group(oh, "PROP_TYPE"); group(oh, "MANAGING_AGENCY"); group(oh, "SHOW"); sample(oh, "1=1", 30, "Name_Label,PROP_TYPE")
+          sc = "https://services.arcgis.com/acgZYxoN5Oj8pDLa/arcgis/rest/services/DEV_-_SCDNR_Public_Lands_Viewer/FeatureServer"
+          for i in (3, 4): info(f"{sc}/{i}"); sample(f"{sc}/{i}", n=6)
+          info("https://services1.arcgis.com/k8yxvICm95iIFicb/arcgis/rest/services/State_Game_Lands_Boundaries/FeatureServer")
+          info("https://services.arcgis.com/b9DHj1BjfdLLFv11/arcgis/rest/services/INPC_Update_Holman_10_9_20/FeatureServer/0"); sample("https://services.arcgis.com/b9DHj1BjfdLLFv11/arcgis/rest/services/INPC_Update_Holman_10_9_20/FeatureServer/0", n=5)
+          info("https://services.arcgis.com/b9DHj1BjfdLLFv11/arcgis/rest/services")
+          for u in ["https://gis.dnr.mo.gov/host/rest/services/boundary/modnr_land/MapServer/0", "https://gis.dnr.mo.gov/server/rest/services/parks/Missouri_State_Parks_Boundaries/FeatureServer", "https://gis.dnr.mo.gov/server/rest/services/parks/Missouri_State_Parks_Boundaries/FeatureServer/4"]:
+              info(u); sample(u, n=5)
+          info("https://services2.arcgis.com/O1BoHHG3996OpUQ1/arcgis/rest/services")
+          de = "https://enterprise.firstmap.delaware.gov/arcgis/rest/services/Society/DE_State_Lands/FeatureServer/0"
+          group(de, "MANAGING_AGENCY"); group(de, "USE")
+          ind = "https://gisdata.in.gov/server/rest/services/Hosted/ManagedLands_DNR_Open/FeatureServer/0"
+          group(ind, "manager")
+          mo = "https://gisblue.mdc.mo.gov/arcgis/rest/services/Discover_Nature/MDC_Administrative_Areas/MapServer/5"
+          group(mo, "Public_Site")
+          for q in ['owner:StateOfAlabama', 'owner:Mdwfp@gis', 'Illinois Department of Natural Resources state parks', 'IDNR_Admin', 'owner:IDNR_Admin', 'Alabama state parks', 'South Carolina state parks', 'Mississippi state parks boundaries', 'owner:PAGameCommissionGIS']:
+              search(q)
