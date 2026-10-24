@@ -7,6 +7,25 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      - name: Search
+        shell: python3 {0}
+        run: |
+          import json, urllib.request, urllib.parse
+          qs = ["Illinois state parks boundaries", "IDNR lands", "Illinois nature preserves boundaries", "Illinois state historic sites",
+                "Georgia wildlife management areas", "Georgia DNR lands", "Georgia state parks boundaries",
+                "Alabama state parks boundaries", "Alabama state lands ADCNR", "Mississippi state parks", "MDWFP wildlife management areas",
+                "Arkansas state parks boundary", "Arkansas wildlife management areas AGFC", "Ohio state parks boundary", "ODNR lands",
+                "South Carolina state parks boundary", "SCDNR wildlife management areas", "Missouri state parks boundary",
+                "Indiana state recreation areas", "Delaware state lands", "Pennsylvania state game lands"]
+          for q in qs:
+              u = "https://www.arcgis.com/sharing/rest/search?" + urllib.parse.urlencode({"q": q + ' AND (type:"Feature Service" OR type:"Map Service")', "num": 15, "f": "json"})
+              try:
+                  d = json.load(urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0"}), timeout=60))
+              except Exception as e:
+                  print("!!", q, e); continue
+              print("##", q)
+              for r in d.get("results", []):
+                  print("  ", r["title"], "|", r["owner"], "|", r.get("url"))
       - name: Layers
         run: |
           show() {
@@ -14,9 +33,26 @@ jobs:
             echo "== $u ($w)"
             curl -sS -A "Mozilla/5.0" --max-time 60 "$u?f=json" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('name'), d.get('geometryType'), d.get('maxRecordCount'), [f['name'] for f in d.get('fields',[])], [(l['id'],l['name']) for l in d.get('layers',[])])" || true
             curl -sS -A "Mozilla/5.0" --max-time 60 "$u/query?where=$w&returnCountOnly=true&f=json"; echo
-            curl -sS -A "Mozilla/5.0" --max-time 60 "$u/query?where=$w&outFields=*&returnGeometry=false&resultRecordCount=12&f=json" | python3 -c "import json,sys; d=json.load(sys.stdin); [print(' ',{k:v for k,v in f['attributes'].items() if v not in (None,'',' ') and not k.lower().startswith('shape')}) for f in d.get('features',[])]" || true
+            curl -sS -A "Mozilla/5.0" --max-time 60 "$u/query?where=$w&outFields=*&returnGeometry=false&resultRecordCount=8&f=json" | python3 -c "import json,sys; d=json.load(sys.stdin); [print(' ',{k:v for k,v in f['attributes'].items() if v not in (None,'',' ') and not k.lower().startswith('shape')}) for f in d.get('features',[])]" || true
           }
-          show https://services1.arcgis.com/YfqBAUM5nWR3yhGP/ArcGIS/rest/services/gamelands_general/FeatureServer/21
-          show https://kygisserver.ky.gov/arcgis/rest/services/WGS84WM_Services/Ky_Elk_Hunting_WGS84WM/MapServer
-          show https://kygisserver.ky.gov/arcgis/rest/services/WGS84WM_Services/Ky_Elk_Hunting_WGS84WM/MapServer/4
-          curl -sS "https://kygisserver.ky.gov/arcgis/rest/services/WGS84WM_Services?f=json" | python3 -c "import json,sys; [print(' svc',s['name']) for s in json.load(sys.stdin)['services']]"
+          show https://gis.arkansas.gov/arcgis/rest/services/FEATURESERVICES/Environment/FeatureServer
+          show https://gis.arkansas.gov/arcgis/rest/services/FEATURESERVICES/Environment/FeatureServer/20
+          show https://gis.arkansas.gov/arcgis/rest/services/FEATURESERVICES/Boundaries/FeatureServer
+          show https://gis.arkansas.gov/arcgis/rest/services/FEATURESERVICES/Boundaries/FeatureServer/21
+          show https://gis.ardot.gov/hosting/rest/services/Hosted/StateParks/FeatureServer/0
+          show https://www.maris.state.ms.us/server/rest/services/Vector/WildL_Areas/MapServer
+          show https://www.maris.state.ms.us/server/rest/services/Vector/WildL_Areas/MapServer/0
+          show https://www.maris.state.ms.us/server/rest/services/Vector/State_Parks/MapServer/0
+          show https://services7.arcgis.com/iEMmryaM5E3wkdnU/arcgis/rest/services/Alabama_Wildlife_Management_Areas/FeatureServer/0
+          show http://maps.dcnr.alabama.gov/adcnrweb/rest/services/VirtualAL/MapServer
+          show http://maps.dcnr.alabama.gov/adcnrweb/rest/services/VirtualAL/MapServer/3
+          show https://gisdata.in.gov/server/rest/services/Hosted/ManagedLands_DNR_Open/FeatureServer/0
+          show https://gisdata.in.gov/server/rest/services/Hosted/ManagedLandsAll_DNR_INHD_IN_SP/FeatureServer/0
+          show https://gisdata.in.gov/server/rest/services/Hosted/NaturePreservesCoastalArea/FeatureServer/0
+          show https://gisblue.mdc.mo.gov/arcgis/rest/services/Discover_Nature/MDC_Administrative_Areas/MapServer
+          show https://gisblue.mdc.mo.gov/arcgis/rest/services/Discover_Nature/MDC_Administrative_Areas/MapServer/5
+          show https://services3.arcgis.com/YgrExeJfxG5F4At7/ArcGIS/rest/services/Managed_Areas_All/FeatureServer/0
+          show https://enterprise.firstmap.delaware.gov/arcgis/rest/services/Society/DE_State_Lands/FeatureServer/0
+          show https://gis2.ohiodnr.gov/ArcGIS/rest/services/OIT_Services/ODNR_Basemap_Streets_103_2/MapServer/6
+          show https://services.pasda.psu.edu/server/rest/services/pasda/PennsylvaniaGameCommission/MapServer/4
+          show https://geospat.gatech.edu/arcgis/rest/services/Coast/GCAMP_Fisheries/MapServer/20
