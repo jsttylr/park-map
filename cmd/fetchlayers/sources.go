@@ -48,6 +48,14 @@ func mdName(a attrs) string {
 	return n
 }
 
+// kyName spells out "WMA" in Kentucky's hunting area names ("Redbird WMA").
+func kyName(a attrs) string {
+	if n, ok := strings.CutSuffix(a.s("AREANAME"), " WMA"); ok {
+		return n + " Wildlife Management Area"
+	}
+	return a.s("AREANAME")
+}
+
 // sources are the agency layers, all public domain US government data. Each
 // is listed with its service so it can be checked in a browser.
 var sources = []source{
@@ -110,6 +118,19 @@ var sources = []source{
 		Name: field("SNA_NAME", ""), Loc: field("SITE_NAME", ""), State: "TN", Manager: "TDEC", Designation: "STATE", Class: "TN Natural Areas"},
 	{Label: "Tennessee state park lands", URL: "https://tdeconline.tn.gov/arcgis/rest/services/TDEC_Public_Lands/FeatureServer/0",
 		Name: field("NAME_1", ""), Loc: field("NAME_2", ""), State: "TN", Manager: "TDEC", Designation: "STATE", Class: "TN State Park Lands"},
+
+	// North Carolina's game lands (Wildlife Resources Commission).
+	{Label: "North Carolina game lands", URL: "https://services1.arcgis.com/YfqBAUM5nWR3yhGP/ArcGIS/rest/services/gamelands_general/FeatureServer/21",
+		Name: field("GML_HAB", "Game Land"), State: "NC", Manager: "NCWRC", Designation: "STATE", Class: "NC Game Lands"},
+
+	// Kentucky's public hunting areas (wildlife management areas and others,
+	// KDFWR), state nature preserves and state forests.
+	{Label: "Kentucky public hunting areas", URL: "https://kygisserver.ky.gov/arcgis/rest/services/WGS84WM_Services/Ky_Public_Hunting_Areas_WGS84WM/MapServer/1",
+		Name: kyName, State: "KY", Manager: "KDFWR", Designation: "STATE", Class: "KY Public Hunting Areas"},
+	{Label: "Kentucky state nature preserves", URL: "https://kygisserver.ky.gov/arcgis/rest/services/WGS84WM_Services/Ky_KNP_State_Nature_Preserves_WGS84WM/MapServer/0",
+		Name: field("MANAME", ""), State: "KY", Manager: "KY OKNP", Designation: "STATE", Class: "KY Nature Preserves"},
+	{Label: "Kentucky state forests", URL: "https://kygisserver.ky.gov/arcgis/rest/services/WGS84WM_Services/Ky_StateForests_WGS84WM/MapServer/1",
+		Name: field("NAME", "State Forest"), State: "KY", Manager: "KY DOF", Designation: "STATE", Class: "KY State Forests"},
 
 	// West Virginia's public lands compilation (2020), state land only.
 	{Label: "West Virginia state lands", URL: "https://services1.arcgis.com/cTNi34MxOdcfum3A/ArcGIS/rest/services/WV_Master_PublicLands_042120/FeatureServer/0",
