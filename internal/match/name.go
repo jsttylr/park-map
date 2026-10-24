@@ -92,8 +92,37 @@ func dice(a, b map[string]bool) float64 {
 
 // Similarity scores two place names from 0 to 1. The distinctive words
 // ("Acadia", "Bear Creek") count most; generic words ("State Park") add a little.
+// A name that sets the park on a lake ("Paynetown on Monroe Lake State
+// Recreation Area") is also scored without the lake, so it matches the unit
+// itself better than the whole reservoir.
 func Similarity(a, b string) float64 {
 	ta, tb := Tokens(a), Tokens(b)
+	s := similarity(ta, tb)
+	if t, ok := withoutSetting(ta); ok {
+		s = max(s, similarity(t, tb))
+	}
+	if t, ok := withoutSetting(tb); ok {
+		s = max(s, similarity(ta, t))
+	}
+	return s
+}
+
+// withoutSetting drops the "on ..." part of a name, keeping the kind of land
+// at the end.
+func withoutSetting(t []string) ([]string, bool) {
+	end := len(t)
+	for end > 0 && generic[t[end-1]] {
+		end--
+	}
+	for i := 1; i < end-1; i++ {
+		if t[i] == "on" {
+			return append(append([]string{}, t[:i]...), t[end:]...), true
+		}
+	}
+	return nil, false
+}
+
+func similarity(ta, tb []string) float64 {
 	ca, cb := core(ta), core(tb)
 	full := dice(set(ta), set(tb))
 	if len(ca) == 0 || len(cb) == 0 {
