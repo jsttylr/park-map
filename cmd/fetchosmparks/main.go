@@ -36,6 +36,7 @@ import (
 
 const (
 	minScore = 0.5  // how well an area's name must match the park's
+	trailMin = 0.9  // how well a trail park's name must match, to take an area over its route
 	nearKm   = 2.0  // how far from the pin an area may be and still be the park
 	gatherKm = 10.0 // how far to gather the other pieces of the chosen area
 	kmPerDeg = 111.0
@@ -54,22 +55,24 @@ type cand struct {
 	name   string
 	score  float64
 	inside bool
+	km     float64 // how far the nearest piece is from the pin
 	geom   orb.MultiPolygon
 	ids    []string
 }
 
 // add keeps one piece of an area under its name.
-func (p *park) add(name, id string, mp orb.MultiPolygon, score float64, inside bool) {
+func (p *park) add(name, id string, mp orb.MultiPolygon, score float64, inside bool, km float64) {
 	k := match.Key(name)
 	c := p.cands[k]
 	if c == nil {
 		if p.cands == nil {
 			p.cands = map[string]*cand{}
 		}
-		c = &cand{name: name, score: score}
+		c = &cand{name: name, score: score, km: km}
 		p.cands[k] = c
 	}
 	c.inside = c.inside || inside
+	c.km = min(c.km, km)
 	c.geom = append(c.geom, mp...)
 	c.ids = append(c.ids, id)
 }
@@ -145,20 +148,25 @@ func main() {
 						continue
 					}
 					seen[p] = true
-					if !b.Pad(gatherKm/kmPerDeg).Contains(p.Pt) || !match.SharesName(p.Name, name) || match.Conflicts(p.Name, name) {
+					if !b.Pad(gatherKm/kmPerDeg).Contains(p.Pt) || !match.SharesName(p.Name, name) || match.Conflicts(p.Name, name) || !sameKind(p.Name, name) {
 						continue
 					}
+					// A trail park keeps its route unless an area has
+					// the trail's own name.
 					score := match.Similarity(p.Name, name)
-					if score < minScore {
+					if score < minScore || match.IsTrail(p.Name) && score < trailMin {
 						continue
 					}
 					// Pieces of the same area are gathered from farther out
 					// than the piece that decides the match.
-					inside := planar.MultiPolygonContains(mp, p.Pt)
-					if !inside && p.cands[match.Key(name)] == nil && planar.DistanceFrom(mp, p.Pt)*kmPerDeg > nearKm {
+					inside, km := planar.MultiPolygonContains(mp, p.Pt), 0.0
+					if !inside {
+						km = planar.DistanceFrom(mp, p.Pt) * kmPerDeg
+					}
+					if !inside && p.cands[match.Key(name)] == nil && km > nearKm {
 						continue
 					}
-					p.add(name, id, mp, score, inside)
+					p.add(name, id, mp, score, inside, km)
 					kept++
 				}
 			}
@@ -182,8 +190,8 @@ func main() {
 			continue
 		}
 		n++
-		fmt.Printf("%s %s (%s) | %q %s %.2f, %.0f acres, inside=%v, %d pieces\n",
-			p.Ref, p.Name, p.Loc, c.name, strings.Join(c.ids[:min(3, len(c.ids))], ","), c.score, acres(c.geom), c.inside, len(c.geom))
+		fmt.Printf("%s %s (%s) | %q %s %.2f, %.0f acres, inside=%v, %.2f km, %d pieces\n",
+			p.Ref, p.Name, p.Loc, c.name, strings.Join(c.ids[:min(3, len(c.ids))], ","), c.score, acres(c.geom), c.inside, c.km, len(c.geom))
 	}
 	fmt.Printf("\n== OpenStreetMap outlines: %d of %d parks, from %d areas, in %v\n", n, len(parks), total, time.Since(start).Round(time.Second))
 }
@@ -207,6 +215,7 @@ func write(path string, parks []*park) error {
 		ft.Properties["osm_name"] = c.name
 		ft.Properties["score"] = c.score
 		ft.Properties["contains"] = c.inside
+		ft.Properties["km"] = math.Round(c.km*100) / 100
 		b, err := json.Marshal(ft)
 		if err != nil {
 			return err

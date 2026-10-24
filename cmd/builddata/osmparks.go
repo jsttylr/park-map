@@ -23,6 +23,7 @@ func useOSM(path string, parks []*park) (int, error) {
 		}
 		score, _ := f.Properties["score"].(float64)
 		contains, _ := f.Properties["contains"].(bool)
+		km, _ := f.Properties["km"].(float64)
 		// A confident official outline, or a trail's route, wins. A weak
 		// official match gives way only to a better-named OpenStreetMap one.
 		switch c := p.best; {
@@ -34,7 +35,7 @@ func useOSM(path string, parks []*park) (int, error) {
 		p.geom = mp
 		p.best = &candidate{
 			Key: "osm:" + prop(f, "osm"), Unit: prop(f, "osm_name"), Manager: "OSM",
-			Designation: "PARK", Layer: "OSM", Score: score, Contains: contains, Extra: true,
+			Designation: "PARK", Layer: "OSM", Score: score, Contains: contains, DistKm: km, Extra: true,
 		}
 		n++
 	})

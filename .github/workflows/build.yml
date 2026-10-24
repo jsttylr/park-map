@@ -111,7 +111,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: osm-parks.geojsonl.gz
-          key: osmparks-v1-${{ steps.month.outputs.m }}
+          key: osmparks-v2-${{ steps.month.outputs.m }}
       - name: Park outlines from OpenStreetMap
         id: osmareas
         if: steps.osmparks.outputs.cache-hit != 'true'
@@ -135,7 +135,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: osm-parks.geojsonl.gz
-          key: osmparks-v1-${{ steps.month.outputs.m }}
+          key: osmparks-v2-${{ steps.month.outputs.m }}
       # Agency maps that fill in parks PAD-US doesn't draw (BLM, FWS, Army
       # Corps, Reclamation, NPS) and the official national historic trail
       # routes. Cached for the month; a service that's down only leaves its
