@@ -23,7 +23,7 @@ jobs:
           def group(u, field, where="1=1"):
               stats = json.dumps([{"statisticType": "count", "onStatisticField": field, "outStatisticFieldName": "n"}])
               d = get(u + "/query", where=where, groupByFieldsForStatistics=field, outStatistics=stats, f="json")
-              print("  by", field, d.get("err") or d.get("error") or sorted(((f["attributes"].get(field), f["attributes"]["n"]) for f in d.get("features", [])), key=lambda x: -x[1])[:60])
+              print("  by", field, d.get("err") or d.get("error") or sorted(((f["attributes"].get(field), f["attributes"].get("n", f["attributes"].get("N", 0))) for f in d.get("features", [])), key=lambda x: -(x[1] or 0))[:60])
           def sample(u, where="1=1", n=8, fields="*"):
               d = get(u + "/query", where=where, outFields=fields, returnGeometry="false", resultRecordCount=n, f="json")
               for f in d.get("features", []): print("   ", {k: v for k, v in f["attributes"].items() if v not in (None, "", " ") and not k.lower().startswith("shape") and k.lower() not in ("globalid",)})
@@ -34,7 +34,7 @@ jobs:
               for r in d.get("results", []): print("   ", r["title"], "|", r["owner"], "|", r.get("url"))
           def names(u, field, where):
               d = get(u + "/query", where=where, outFields=field, returnGeometry="false", f="json")
-              print("  ", where[:60], "->", d.get("err") or d.get("error") or sorted({f["attributes"].get(field) for f in d.get("features", [])})[:40])
+              print("  ", where[:60], "->", d.get("err") or d.get("error") or sorted({str(f["attributes"].get(field)) for f in d.get("features", [])})[:150])
           A="https://services1.arcgis.com/"
           fnai = "https://services.arcgis.com/9Jk4Zl9KofTtvg3x/arcgis/rest/services/FL_Conservation_Lands_web/FeatureServer/9"
           group(fnai, "MATYPE2"); group(fnai, "MANAGING_A")
@@ -49,7 +49,7 @@ jobs:
           d = get(okw + "/query", where="1=1", outFields="WMANAME", returnGeometry="false", f="json"); print("  ok all", sorted(f["attributes"]["WMANAME"] for f in d.get("features", [])))
           mi = "https://services3.arcgis.com/Jdnp1TjADvSDxMAX/arcgis/rest/services/DNRLOTSParcelsOPENDATA/FeatureServer/13"
           group(mi, "Division")
-          for w in ["Game", "Harbor", "Wildlife", "Flooding", "Hatchery", "Wilderness", "Tobico", "Clair"]:
+          for w in ["Harbor", "Wildlife", "Flooding", "Hatchery", "Wilderness", "Tobico", "Clair"]:
               names(mi, "UnitName", "UnitName LIKE '%" + w + "%'")
           mip = "https://services3.arcgis.com/Jdnp1TjADvSDxMAX/arcgis/rest/services/DNRManagementBoundariesOPENDATA/FeatureServer/8"
           names(mip, "Facility", "1=1")
