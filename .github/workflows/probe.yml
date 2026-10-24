@@ -32,5 +32,15 @@ jobs:
               d = get("https://www.arcgis.com/sharing/rest/search", q=q, num=25, f="json")
               print("## search", q)
               for r in d.get("results", []): print("   ", r["title"], "|", r["owner"], "|", r.get("url"))
-          ind = "https://gisdata.in.gov/server/rest/services/Hosted/ManagedLands_DNR_Open/FeatureServer/0"
-          sample(ind, "unitname IN ('Monroe Lake', 'Salamonie Lake', 'Patoka Lake', 'Mississinewa Lake', 'Brookville Lake', 'Cagles Mill Lake', 'Cecil M. Harden Lake') OR subunit LIKE '%SRA%' OR subunit LIKE '%Recreation Area%' OR unitname LIKE '%Recreation Area%'", 200, "unitname,subunit,acres,manager")
+          qs = ["Suwannee River Water Management District lands", "Florida Managed Areas FNAI", "Florida conservation lands", "SFWMD lands", "Florida state parks boundaries",
+                "Oklahoma wildlife management areas ODWC", "Oklahoma Department of Wildlife Conservation", "Oklahoma Historical Society sites",
+                "Michigan DNR state game areas", "Michigan DNR managed lands", "Michigan state wildlife areas boundaries",
+                "Wisconsin DNR managed lands", "Wisconsin state natural areas", "Kansas wildlife and parks public lands", "KDWP public lands",
+                "Louisiana wildlife management areas LDWF", "Nebraska Game and Parks public lands", "NYSDEC lands", "DEC state forests New York",
+                "New Jersey wildlife management areas", "NJDEP state lands", "Iowa DNR managed lands", "TPWD wildlife management areas", "Texas Historical Commission state historic sites"]
+          for q in qs:
+              d = get("https://www.arcgis.com/sharing/rest/search", q=q + ' AND (type:"Feature Service" OR type:"Map Service")', num=12, f="json")
+              print("##", q)
+              for r in d.get("results", []):
+                  if "PADUS" in r["title"] or "PAD-US" in r["title"] or "Amrivers" in r["owner"]: continue
+                  print("   ", r["title"], "|", r["owner"], "|", r.get("url"))
