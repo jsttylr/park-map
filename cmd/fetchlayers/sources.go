@@ -30,30 +30,51 @@ func blmRec(a attrs) string {
 	return n + " BLM"
 }
 
-// mdName spells out the kind of land at the end of a Maryland DNR name
-// ("SASSAFRAS NRMA").
-func mdName(a attrs) string {
-	n := a.s("DNRName")
-	i := strings.LastIndex(n, " ")
-	if i < 0 {
-		return n
+// spelled reads a name that ends with a short form of its kind of land
+// ("Piney Creeks WMA") and spells the kind out, in capitals if the name is.
+func spelled(k string, kinds map[string]string) func(attrs) string {
+	return func(a attrs) string {
+		n := a.s(k)
+		i := strings.LastIndex(n, " ")
+		if i < 0 {
+			return n
+		}
+		w, ok := kinds[strings.ToUpper(strings.TrimSuffix(n[i+1:], "."))]
+		if !ok {
+			return n
+		}
+		if n == strings.ToUpper(n) {
+			w = strings.ToUpper(w)
+		}
+		return n[:i] + " " + w
 	}
-	kinds := map[string]string{
-		"SP": "State Park", "SF": "State Forest", "WMA": "Wildlife Management Area", "NRMA": "Natural Resources Management Area",
-		"NA": "Natural Area", "NEA": "Natural Environment Area", "FMA": "Fish Management Area", "SB": "State Battlefield",
-	}
-	if k, ok := kinds[strings.ToUpper(n[i+1:])]; ok {
-		return n[:i] + " " + strings.ToUpper(k)
-	}
-	return n
 }
 
+const wma = "Wildlife Management Area"
+
+// mdName spells out the kind of land at the end of a Maryland DNR name
+// ("SASSAFRAS NRMA").
+var mdName = spelled("DNRName", map[string]string{
+	"SP": "State Park", "SF": "State Forest", "WMA": wma, "NRMA": "Natural Resources Management Area",
+	"NA": "Natural Area", "NEA": "Natural Environment Area", "FMA": "Fish Management Area", "SB": "State Battlefield",
+})
+
 // kyName spells out "WMA" in Kentucky's hunting area names ("Redbird WMA").
-func kyName(a attrs) string {
-	if n, ok := strings.CutSuffix(a.s("AREANAME"), " WMA"); ok {
-		return n + " Wildlife Management Area"
+var kyName = spelled("AREANAME", map[string]string{"WMA": wma})
+
+// ilName adds the kind of land to an Illinois DNR site's name ("Devil's
+// Island" is a state fish and wildlife area).
+func ilName(a attrs) string {
+	n := a.s("Name")
+	kinds := map[string]string{
+		"SP": "State Park", "SFWA": "State Fish and Wildlife Area", "SRA": "State Recreation Area", "SHS": "State Historic Site",
+		"SF": "State Forest", "SNA": "State Natural Area", "SWA": "State Wildlife Area", "CA": "Conservation Area",
 	}
-	return a.s("AREANAME")
+	k := kinds[a.s("CLASSIFICA")]
+	if n == "" || k == "" || strings.Contains(strings.ToLower(n), strings.ToLower(k)) {
+		return n
+	}
+	return n + " " + k
 }
 
 // sources are the agency layers, all public domain US government data. Each
@@ -135,6 +156,69 @@ var sources = []source{
 	// West Virginia's public lands compilation (2020), state land only.
 	{Label: "West Virginia state lands", URL: "https://services1.arcgis.com/cTNi34MxOdcfum3A/ArcGIS/rest/services/WV_Master_PublicLands_042120/FeatureServer/0",
 		Where: "Mang_Type = 'STAT'", Name: field("Unit_Nm", ""), State: "WV", Manager: "WV DNR", Designation: "STATE", Class: "WV Public Lands"},
+
+	// The next ring of states. Arkansas: Game and Fish wildlife management
+	// areas, Natural Heritage Commission natural areas and state parks from
+	// the state's GIS office and highway department, whose public lands map
+	// also has the lake recreation and use areas.
+	{Label: "Arkansas wildlife management areas", URL: "https://gis.arkansas.gov/arcgis/rest/services/FEATURESERVICES/Boundaries/FeatureServer/37",
+		Name: spelled("wma", map[string]string{"WMA": wma}), State: "AR", Manager: "AGFC", Designation: "STATE", Class: "AR WMAs"},
+	{Label: "Arkansas natural areas", URL: "https://gis.arkansas.gov/arcgis/rest/services/FEATURESERVICES/Boundaries/FeatureServer/21",
+		Name: field("maname", ""), State: "AR", Manager: "ANHC", Designation: "STATE", Class: "AR Natural Areas"},
+	{Label: "Arkansas state parks", URL: "https://gis.ardot.gov/hosting/rest/services/Hosted/StateParks/FeatureServer/0",
+		Name: field("name", ""), State: "AR", Manager: "AR Parks", Designation: "STATE", Class: "AR State Parks"},
+	{Label: "Arkansas public lands", URL: "https://gis.ardot.gov/referenced/rest/services/TPP_GISMapping/CORE_BASE_LAYERS/FeatureServer/0",
+		Where: "Type IN ('Wildlife Management Area', 'Wildlife Managment Area', 'State Game Management Area', 'Wildlife Demonstration Area', 'Natural Area', 'State Park', 'Recreation Area', 'Public Use Area', 'Park / Public Use Area')",
+		Name:  field("Boundary_N", ""), State: "AR", Manager: "ARDOT", Designation: "STATE", Class: "AR Public Lands"},
+
+	// Georgia DNR's managed lands (state parks, historic sites, wildlife
+	// management areas, fishing areas).
+	{Label: "Georgia DNR lands", URL: "https://services6.arcgis.com/9QlSLDqa0P1cHLhu/arcgis/rest/services/GADNR_Managed_Lands/FeatureServer/0",
+		Where: "NAME IS NOT NULL AND NAME <> ' '", Name: spelled("NAME", map[string]string{
+			"WMA": wma, "SP": "State Park", "SHS": "State Historic Site", "HS": "Historic Site", "PFA": "Public Fishing Area", "NA": "Natural Area", "FH": "Fish Hatchery",
+		}), State: "GA", Manager: "GA DNR", Designation: "STATE", Class: "GA DNR Lands"},
+
+	// South Carolina DNR's public lands (wildlife management areas and
+	// heritage preserves), one outline each.
+	{Label: "South Carolina DNR lands", URL: "https://services.arcgis.com/acgZYxoN5Oj8pDLa/arcgis/rest/services/DEV_-_SCDNR_Public_Lands_Viewer/FeatureServer/4",
+		Name: spelled("PropertyName", map[string]string{"WMA": wma, "HP": "Heritage Preserve"}), State: "SC", Manager: "SCDNR", Designation: "STATE", Class: "SC DNR Lands"},
+
+	// Ohio DNR's lands: parks, forests, wildlife areas and nature preserves.
+	{Label: "Ohio DNR lands", URL: "https://services5.arcgis.com/ajRlmtxbNBjZggOT/arcgis/rest/services/ODNR_Lands/FeatureServer/0",
+		Name: spelled("Name_Label", map[string]string{
+			"SP": "State Park", "SF": "State Forest", "WA": "Wildlife Area", "DNP": "State Nature Preserve", "NP": "State Nature Preserve", "SNP": "State Nature Preserve",
+		}), State: "OH", Manager: "ODNR", Designation: "STATE", Class: "OH DNR Lands"},
+
+	// Delaware's state lands open to the public (DNREC parks, wildlife and
+	// forest land and others).
+	{Label: "Delaware state lands", URL: "https://enterprise.firstmap.delaware.gov/arcgis/rest/services/Society/DE_State_Lands/FeatureServer/0",
+		Where: "PUBLIC_ACESS = 'Yes'", Name: field("NAME", ""), State: "DE", Manager: "DNREC", Designation: "STATE", Class: "DE State Lands"},
+
+	// Indiana DNR's managed lands (state parks, recreation areas, forests,
+	// fish and wildlife areas and nature preserves).
+	{Label: "Indiana DNR lands", URL: "https://gisdata.in.gov/server/rest/services/Hosted/ManagedLands_DNR_Open/FeatureServer/0",
+		Where: "manager LIKE 'DNR%'", Name: field("unitname", ""), Loc: field("subunit", ""), State: "IN", Manager: "IN DNR", Designation: "STATE", Class: "IN DNR Lands"},
+	{Label: "Indiana nature preserves", URL: "https://gisdata.in.gov/server/rest/services/Hosted/NaturePreservesCoastalArea/FeatureServer/0",
+		Where: "manager LIKE 'DNR%'", Name: field("unitname", ""), Loc: field("subunit", ""), State: "IN", Manager: "IN DNR", Designation: "STATE", Class: "IN Nature Preserves"},
+
+	// Missouri: Department of Conservation areas and the state parks and
+	// historic sites.
+	{Label: "Missouri conservation areas", URL: "https://gisblue.mdc.mo.gov/arcgis/rest/services/Discover_Nature/MDC_Administrative_Areas/MapServer/5",
+		Where: "Public_Site = 'Y'", Name: field("OFF_Name", ""), State: "MO", Manager: "MDC", Designation: "STATE", Class: "MO Conservation Areas"},
+	{Label: "Missouri state parks", URL: "https://gis.dnr.mo.gov/server/rest/services/parks/Missouri_State_Parks_Boundaries/FeatureServer/4",
+		Name: field("LOC_NAME", ""), State: "MO", Manager: "MO DNR", Designation: "STATE", Class: "MO State Parks"},
+
+	// Illinois DNR's sites, named with their kind of land, and the Nature
+	// Preserves Commission's preserves and land and water reserves.
+	{Label: "Illinois DNR sites", URL: "https://services.arcgis.com/b9DHj1BjfdLLFv11/arcgis/rest/services/IDNR_Site_Boundaries_10_7_25/FeatureServer/0",
+		Name: ilName, State: "IL", Manager: "IL DNR", Designation: "STATE", Class: "IL DNR Sites"},
+	{Label: "Illinois nature preserves", URL: "https://services.arcgis.com/b9DHj1BjfdLLFv11/arcgis/rest/services/INPC_Update_Holman_10_9_20/FeatureServer/0",
+		Where: "Type IN ('Nature Preserve', 'Land and Water Reserve')", Name: field("Site_Name", ""), State: "IL", Manager: "INPC", Designation: "STATE", Class: "IL Nature Preserves"},
+
+	// Pennsylvania's state game lands, named the way POTA does ("PA 294
+	// State Game Land").
+	{Label: "Pennsylvania state game lands", URL: "https://services1.arcgis.com/k8yxvICm95iIFicb/arcgis/rest/services/State_Game_Lands_Boundaries/FeatureServer/300",
+		Name: func(a attrs) string { return "PA " + a.s("sgl") + " State Game Land" }, State: "PA", Manager: "PGC", Designation: "STATE", Class: "PA State Game Lands"},
 
 	// Official routes of the national historic and scenic trails, mostly old
 	// roads and water routes that OpenStreetMap doesn't map as one trail.

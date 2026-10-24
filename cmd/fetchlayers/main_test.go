@@ -30,3 +30,20 @@ func TestMDName(t *testing.T) {
 		}
 	}
 }
+
+func TestStateNames(t *testing.T) {
+	oh := spelled("Name_Label", map[string]string{"WA": "Wildlife Area", "DNP": "State Nature Preserve"})
+	for _, c := range []struct{ got, want string }{
+		{oh(attrs{"Name_Label": "Aquilla WA"}), "Aquilla Wildlife Area"},
+		{oh(attrs{"Name_Label": "Baker Woods DNP"}), "Baker Woods State Nature Preserve"},
+		{oh(attrs{"Name_Label": "Buckeye Lake Canal Fishing Access"}), "Buckeye Lake Canal Fishing Access"},
+		{kyName(attrs{"AREANAME": "Redbird WMA"}), "Redbird Wildlife Management Area"},
+		{ilName(attrs{"Name": "Devil's Island", "CLASSIFICA": "SFWA"}), "Devil's Island State Fish and Wildlife Area"},
+		{ilName(attrs{"Name": "Pere Marquette State Park", "CLASSIFICA": "SP"}), "Pere Marquette State Park"},
+		{ilName(attrs{"Name": "Burning Star No. 5", "CLASSIFICA": "NC"}), "Burning Star No. 5"},
+	} {
+		if c.got != c.want {
+			t.Errorf("got %q, want %q", c.got, c.want)
+		}
+	}
+}
