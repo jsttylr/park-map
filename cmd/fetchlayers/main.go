@@ -9,6 +9,7 @@
 // Every source is a public ArcGIS map service; see sources.go.
 //
 //	fetchlayers -areas agency-areas.geojsonl.gz -lines agency-lines.geojsonl.gz
+//	fetchlayers -state -areas state-areas.geojsonl.gz -lines /dev/null   # the states' own maps (needs GDAL)
 package main
 
 import (
@@ -23,6 +24,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -33,12 +35,13 @@ import (
 type source struct {
 	Label string // printed in the log
 	URL   string // the layer, ending in /FeatureServer/N or /MapServer/N
-	Where string // which features to take, default all
+	Zip   bool   // URL is instead a zipped shapefile, read with GDAL's ogr2ogr
+	Where string // which features to take (SQL), default all
 
 	// Name builds the unit name from a feature's attributes. Loc, if set,
 	// names the local piece (PAD-US's Loc_Nm).
 	Name, Loc func(a attrs) string
-	State     string // attribute holding the two-letter state, if any
+	State     string // the two-letter state of a state's own map, or the attribute holding it
 
 	Manager, Designation, Class string // written as Mang_Name, Des_Tp and FeatClass
 	Lines                       bool   // a trail route rather than an area
@@ -177,30 +180,103 @@ func fetch(s source, w io.Writer, batch int, simplify float64) (int, error) {
 			return n, fmt.Errorf("%v: %.200s", err, body)
 		}
 		for _, f := range fc.Features {
-			if len(f.Geometry) == 0 || string(f.Geometry) == "null" {
-				continue
-			}
-			name := titled(s.Name(f.Properties))
-			if name == "" {
-				continue
-			}
-			p := attrs{"Unit_Nm": name, "Mang_Name": s.Manager, "Des_Tp": s.Designation, "FeatClass": s.Class, "Source": s.Label}
-			if s.Loc != nil {
-				p["Loc_Nm"] = titled(s.Loc(f.Properties))
-			}
-			if s.State != "" {
-				p["State_Nm"] = f.Properties.s(s.State)
-			}
-			b, err := json.Marshal(feature{"Feature", f.Geometry, p})
+			ok, err := emit(s, f, w)
 			if err != nil {
 				return n, err
 			}
-			w.Write(b)
-			w.Write([]byte{'\n'})
-			n++
+			if ok {
+				n++
+			}
 		}
 	}
 	return n, nil
+}
+
+// emit writes one feature with PAD-US style properties, reporting whether it
+// had a geometry and a name to write.
+func emit(s source, f feature, w io.Writer) (bool, error) {
+	if len(f.Geometry) == 0 || string(f.Geometry) == "null" {
+		return false, nil
+	}
+	name := titled(s.Name(f.Properties))
+	if name == "" {
+		return false, nil
+	}
+	p := attrs{"Unit_Nm": name, "Mang_Name": s.Manager, "Des_Tp": s.Designation, "FeatClass": s.Class, "Source": s.Label}
+	if s.Loc != nil {
+		p["Loc_Nm"] = titled(s.Loc(f.Properties))
+	}
+	switch {
+	case len(s.State) == 2: // a state's own map
+		p["State_Nm"] = s.State
+	case s.State != "":
+		p["State_Nm"] = f.Properties.s(s.State)
+	}
+	b, err := json.Marshal(feature{"Feature", f.Geometry, p})
+	if err != nil {
+		return false, err
+	}
+	w.Write(b)
+	w.Write([]byte{'\n'})
+	return true, nil
+}
+
+// fetchZip downloads a zipped shapefile and writes its features, read with
+// GDAL's ogr2ogr, which also moves them to longitude and latitude.
+func fetchZip(s source, w io.Writer) (int, error) {
+	tmp, err := os.CreateTemp("", "layer-*.zip")
+	if err != nil {
+		return 0, err
+	}
+	defer os.Remove(tmp.Name())
+	resp, err := client.Get(s.URL)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return 0, fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+	if _, err := io.Copy(tmp, resp.Body); err != nil {
+		return 0, err
+	}
+	tmp.Close()
+	args := []string{"-f", "GeoJSONSeq", "/vsistdout/", "/vsizip/" + tmp.Name(),
+		"-t_srs", "EPSG:4326", "-lco", "COORDINATE_PRECISION=5", "-lco", "RS=NO"}
+	if s.Where != "" {
+		args = append(args, "-where", s.Where)
+	}
+	cmd := exec.Command("ogr2ogr", args...)
+	cmd.Stderr = os.Stderr
+	out, err := cmd.StdoutPipe()
+	if err != nil {
+		return 0, err
+	}
+	if err := cmd.Start(); err != nil {
+		return 0, err
+	}
+	n := 0
+	sc := bufio.NewScanner(out)
+	sc.Buffer(make([]byte, 1<<20), 1<<28)
+	for sc.Scan() {
+		var f feature
+		if json.Unmarshal(sc.Bytes(), &f) != nil {
+			continue
+		}
+		ok, err := emit(s, f, w)
+		if err != nil {
+			cmd.Process.Kill()
+			return n, err
+		}
+		if ok {
+			n++
+		}
+	}
+	if err := sc.Err(); err != nil {
+		cmd.Process.Kill()
+		return n, err
+	}
+	return n, cmd.Wait()
 }
 
 func create(path string) (*os.File, *gzip.Writer, *bufio.Writer, error) {
@@ -216,6 +292,7 @@ func main() {
 	areas := flag.String("areas", "agency-areas.geojsonl.gz", "output areas, PAD-US style (gzipped GeoJSON lines)")
 	lines := flag.String("lines", "agency-lines.geojsonl.gz", "output trail routes (gzipped GeoJSON lines)")
 	only := flag.String("only", "", "fetch only sources whose label contains this")
+	stateMaps := flag.Bool("state", false, "fetch the states' own maps instead of the national ones")
 	flag.Parse()
 
 	af, agz, aw, err := create(*areas)
@@ -228,7 +305,7 @@ func main() {
 	}
 	failed := 0
 	for _, s := range sources {
-		if *only != "" && !strings.Contains(s.Label, *only) {
+		if *only != "" && !strings.Contains(s.Label, *only) || *stateMaps != (len(s.State) == 2) {
 			continue
 		}
 		start := time.Now()
@@ -236,7 +313,12 @@ func main() {
 		if s.Lines {
 			w, batch, simplify = lw, 50, 0.00005
 		}
-		n, err := fetch(s, w, batch, simplify)
+		var n int
+		if s.Zip {
+			n, err = fetchZip(s, w)
+		} else {
+			n, err = fetch(s, w, batch, simplify)
+		}
 		if err != nil {
 			// One agency's service being down shouldn't stop the build;
 			// those parks just stay as they were.

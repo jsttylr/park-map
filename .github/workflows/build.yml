@@ -88,7 +88,7 @@ jobs:
         continue-on-error: true
         timeout-minutes: 90
         run: |
-          sudo apt-get install -y -qq osmium-tool > /dev/null
+          sudo apt-get update -qq && sudo apt-get install -y -qq osmium-tool > /dev/null
           for s in $(go run ./cmd/fetchtrails -pota all_parks_ext.csv -states); do
             curl -fsSL --retry 3 -o state.osm.pbf "https://download.geofabrik.de/north-america/us/$s-latest.osm.pbf"
             osmium tags-filter --overwrite -o "f-$s.osm.pbf" state.osm.pbf r/route=hiking,foot,walking,bicycle,mtb,horse,historic,canoe,ski,inline_skates,running,fitness_trail w/highway=path,footway,cycleway,bridleway
@@ -118,7 +118,7 @@ jobs:
         continue-on-error: true
         timeout-minutes: 120
         run: |
-          sudo apt-get install -y -qq osmium-tool > /dev/null
+          sudo apt-get update -qq && sudo apt-get install -y -qq osmium-tool > /dev/null
           : > areas.geojsonseq.gz
           for s in $(go run ./cmd/fetchosmparks -pota all_parks_ext.csv -states); do
             curl -fsSL --retry 3 -o state.osm.pbf "https://download.geofabrik.de/north-america/us/$s-latest.osm.pbf"
@@ -158,6 +158,28 @@ jobs:
         with:
           path: agency-*.geojsonl.gz
           key: agency-v2-${{ steps.month.outputs.m }}
+      # The states' own maps of their parks, forests and wildlife areas, from
+      # Virginia outward. Cached for the month like the agency layers.
+      - name: Cached state layers
+        id: state
+        uses: actions/cache/restore@v4
+        with:
+          path: state-areas.geojsonl.gz
+          key: state-v1-${{ steps.month.outputs.m }}
+      - name: State layers
+        id: fetchstate
+        if: steps.state.outputs.cache-hit != 'true'
+        continue-on-error: true
+        timeout-minutes: 60
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq gdal-bin > /dev/null
+          go run ./cmd/fetchlayers -state -areas state-areas.geojsonl.gz -lines state-lines.geojsonl.gz && ls -la state-areas.geojsonl.gz
+      - name: Save state layers cache
+        if: steps.state.outputs.cache-hit != 'true' && steps.fetchstate.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: state-areas.geojsonl.gz
+          key: state-v1-${{ steps.month.outputs.m }}
       - name: Use official trail routes over OpenStreetMap
         run: |
           if [ -s agency-lines.geojsonl.gz ]; then
@@ -174,8 +196,9 @@ jobs:
         run: |
           T=""; if [ -s trail-areas.geojsonl.gz ]; then T="-trails trail-areas.geojsonl.gz"; fi
           A=""; if [ -s agency-areas.geojsonl.gz ]; then A="agency-areas.geojsonl.gz"; fi
+          if [ -s state-areas.geojsonl.gz ]; then A="$A state-areas.geojsonl.gz"; fi
           O=""; if [ -s osm-parks.geojsonl.gz ]; then O="-osm osm-parks.geojsonl.gz"; fi
-          mkdir -p data && go run ./cmd/builddata -pota all_parks_ext.csv -out data/us-parks.geojson.gz -report report.csv $T $O -show US-10139,US-4526,US-0171,US-5730,US-5751,US-0573 padus.geojsonl.gz $A
+          mkdir -p data && go run ./cmd/builddata -pota all_parks_ext.csv -out data/us-parks.geojson.gz -report report.csv $T $O -show US-5508,US-5509,US-9936,US-11719,US-0573,US-10015 padus.geojsonl.gz $A
       - name: Download SOTA summits and sotl.as activation zones
         env:
           GH_TOKEN: ${{ github.token }}

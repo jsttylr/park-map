@@ -70,6 +70,15 @@ var sources = []source{
 	{Label: "NPS national heritage areas", URL: nps + "National_Heritage_Areas_Updated2023/FeatureServer/0",
 		Name: field("RESNAME", ""), Manager: "NPS", Designation: "NHA", Class: "NPS Heritage Area"},
 
+	// State maps, from Virginia outward. Virginia's conservation lands
+	// database (DCR Natural Heritage) gathers every agency's land; only the
+	// state parks, natural area preserves and forests (DCR and the Department
+	// of Forestry, free to share for non-profit use) and federal land are
+	// taken, since other contributors' terms limit sharing.
+	{Label: "Virginia conservation lands", URL: "https://www.dcr.virginia.gov/natural-heritage/document/conslands.zip", Zip: true,
+		Where: "MAAGENCY IN ('VA Dept of Conservation and Recreation', 'VA Dept of Forestry') OR MAAGENCY LIKE 'US %' OR MAAGENCY LIKE 'National %'",
+		Name:  field("LABEL", ""), State: "VA", Manager: "VA DCR", Designation: "STATE", Class: "VA Conservation Lands"},
+
 	// Official routes of the national historic and scenic trails, mostly old
 	// roads and water routes that OpenStreetMap doesn't map as one trail.
 	{Label: "NPS Captain John Smith Chesapeake NHT", URL: nps + "CAJO_Captain_John_Smith_Chesapeake_NHT_Centerline_ln/FeatureServer/0",
