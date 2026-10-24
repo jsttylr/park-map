@@ -7,20 +7,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Virginia DCR conservation lands
+      - name: Service directories
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq gdal-bin > /dev/null
-          curl -fsSL --retry 3 -A "Mozilla/5.0" -o conslands.zip https://www.dcr.virginia.gov/natural-heritage/document/conslands.zip
-          ls -la conslands.zip && unzip -l conslands.zip
-          ogrinfo -ro -so -al /vsizip/conslands.zip | head -60
-          for f in MAAGENCY MATYPE MALEVEL BNDORIGIN PUBACCESS; do echo "== $f"; ogr2ogr -f CSV /vsistdout/ /vsizip/conslands.zip -dialect sqlite -sql "SELECT $f, count(*) AS n FROM conslands GROUP BY $f ORDER BY n DESC" 2>&1 | head -60; done
-          echo "== samples"
-          ogr2ogr -f CSV /vsistdout/ /vsizip/conslands.zip -dialect sqlite -sql "SELECT LABEL, MANAME, MATYPE, MAAGENCY, BNDORIGIN, GISACRE FROM conslands WHERE MANAME LIKE '%Sweet Run%' OR MANAME LIKE '%Culpeper%' OR MANAME LIKE '%Chesterfield%' OR MANAME LIKE '%Chilton%' OR MANAME LIKE '%Accotink%' OR MANAME LIKE '%Wallops%' OR MANAME LIKE '%Fort Marcy%' OR MANAME LIKE '%Cape Henry%' OR MANAME LIKE '%Jamestown%' OR MANAME LIKE '%Grassy Hill%'" 2>&1 | head -80
-      - name: Maryland and North Carolina services
+          for d in https://services1.arcgis.com/YfqBAUM5nWR3yhGP/ArcGIS/rest/services https://kygisportalservices.ky.gov/server/rest/services/KDFWR https://kygisserver.ky.gov/arcgis/rest/services https://tdeconline.tn.gov/arcgis/rest/services https://services1.arcgis.com/cTNi34MxOdcfum3A/ArcGIS/rest/services; do echo "== $d"; curl -sS --max-time 60 "$d?f=json" | python3 -c "import json,sys; d=json.load(sys.stdin); [print(' dir',f) for f in d.get('folders',[])]; [print(' svc',s['name'],s['type']) for s in d.get('services',[])]" || true; done
+      - name: Layers
         if: always()
         run: |
-          for u in https://geodata.md.gov/imap/rest/services/Environment/MD_ProtectedLands/FeatureServer/0 https://mdgeodata.md.gov/imap/rest/services/Environment/MD_ProtectedLands/FeatureServer/0; do echo "== $u"; curl -sS --max-time 60 "$u/query?where=1%3D1&returnCountOnly=true&f=json"; echo; curl -sS --max-time 60 "$u/query?where=1%3D1&outFields=DNRType&returnDistinctValues=true&returnGeometry=false&f=json" | head -c 3000; echo; done
-          u=https://services3.arcgis.com/YgrExeJfxG5F4At7/ArcGIS/rest/services/Managed_Areas_All/FeatureServer/0
-          curl -sS "$u/query?where=1%3D1&returnCountOnly=true&f=json"; echo
-          curl -sS "$u/query?where=1%3D1&outFields=CATEGORY&returnDistinctValues=true&returnGeometry=false&f=json" | head -c 3000; echo
-          curl -sS "$u/query?where=MA_NAME+LIKE+%27%25Game+Land%25%27&outFields=MA_NAME,OWNER,CATEGORY&returnGeometry=false&resultRecordCount=15&f=json" | head -c 3000; echo
+          for u in https://mdgeodata.md.gov/imap/rest/services/Environment/MD_ProtectedLands/FeatureServer/0 https://tdeconline.tn.gov/arcgis/rest/services/TN_Natural_Areas/FeatureServer/0 https://tdeconline.tn.gov/arcgis/rest/services/TDEC_Public_Lands/FeatureServer/0 https://services1.arcgis.com/cTNi34MxOdcfum3A/ArcGIS/rest/services/WV_Master_PublicLands_042120/FeatureServer/0; do
+            echo "== $u"
+            curl -sS --max-time 60 "$u?f=json" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('name'), d.get('geometryType'), d.get('maxRecordCount'), [f['name'] for f in d.get('fields',[])])" || true
+            curl -sS --max-time 60 "$u/query?where=1%3D1&returnCountOnly=true&f=json"; echo
+            curl -sS --max-time 60 "$u/query?where=1%3D1&outFields=*&returnGeometry=false&resultRecordCount=8&f=json" | python3 -c "import json,sys; d=json.load(sys.stdin); [print(' ',{k:v for k,v in f['attributes'].items() if v not in (None,'') and not k.lower().startswith('shape')}) for f in d.get('features',[])]" || true
+          done
