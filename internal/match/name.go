@@ -44,7 +44,7 @@ func Tokens(s string) []string {
 		return ' '
 	}, s)
 	var out []string
-	for _, w := range strings.Fields(s) {
+	for _, w := range initials(strings.Fields(s)) {
 		if x, ok := abbrev[w]; ok {
 			out = append(out, strings.Fields(x)...)
 		} else if x := strings.TrimSuffix(w, "s"); x != w && generic[x] && !generic[w] {
@@ -52,6 +52,25 @@ func Tokens(s string) []string {
 		} else {
 			out = append(out, w)
 		}
+	}
+	return out
+}
+
+// initials joins a run of single letters into one word, so "D.O.D. Ponds"
+// and "DOD Ponds" read the same.
+func initials(ws []string) []string {
+	var out []string
+	for i := 0; i < len(ws); i++ {
+		j := i
+		for j < len(ws) && len(ws[j]) == 1 && unicode.IsLetter(rune(ws[j][0])) {
+			j++
+		}
+		if j-i >= 2 {
+			out = append(out, strings.Join(ws[i:j], ""))
+			i = j - 1
+			continue
+		}
+		out = append(out, ws[i])
 	}
 	return out
 }
@@ -145,9 +164,13 @@ var weak = map[string]bool{
 }
 
 // SharesName reports whether two names have a distinctive word in common, or
-// the same words apart from generic ones ("New River Trail").
+// the same words apart from generic ones ("New River Trail"), or are the same
+// name made only of generic words.
 func SharesName(a, b string) bool {
 	ca, cb := core(Tokens(a)), core(Tokens(b))
+	if len(ca) == 0 && len(cb) == 0 {
+		return Key(a) == Key(b) // "Wilderness State Park" is all generic words
+	}
 	same := len(ca) > 0 && len(ca) == len(cb)
 	for w := range ca {
 		if cb[w] && !weak[w] {

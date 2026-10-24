@@ -441,8 +441,8 @@ func choose(parks []*park, show string) {
 	// needs a good name match, not just the pin inside it: a campground's
 	// pin sits inside some large BLM recreation area of another name. A PAD-US
 	// outline the park will lose to a better-named park ("Ouachita Leflore
-	// Unit Wildlife Management Area" inside Ouachita National Forest) doesn't
-	// count.
+	// Unit Wildlife Management Area" inside Ouachita National Forest) only
+	// holds back agency outlines without a close name match.
 	padTop := map[string]float64{}
 	for _, p := range parks {
 		for k, c := range p.cands {
@@ -452,13 +452,18 @@ func choose(parks []*park, show string) {
 		}
 	}
 	for _, p := range parks {
-		maps.DeleteFunc(p.cands, func(_ string, c *candidate) bool { return c.Extra && c.Score < minHigh })
+		floor := minHigh
 		for _, c := range p.cands {
-			if !c.Extra && c.confidence() == "high" && (c.Score >= padTop[c.Key]-dominated || match.CoreWithin(p.Name, c.Unit)) {
-				maps.DeleteFunc(p.cands, func(_ string, c *candidate) bool { return c.Extra })
+			if c.Extra || c.confidence() != "high" {
+				continue
+			}
+			if c.Score >= padTop[c.Key]-dominated || match.CoreWithin(p.Name, c.Unit) {
+				floor = math.Inf(1)
 				break
 			}
+			floor = max(floor, minNearMed)
 		}
+		maps.DeleteFunc(p.cands, func(_ string, c *candidate) bool { return c.Extra && c.Score < floor })
 	}
 	top := map[string]float64{}
 	who := map[string]*park{}
