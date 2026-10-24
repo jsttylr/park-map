@@ -44,7 +44,7 @@ func Tokens(s string) []string {
 		return ' '
 	}, s)
 	var out []string
-	for _, w := range initials(strings.Fields(s)) {
+	for _, w := range strings.Fields(s) {
 		if x, ok := abbrev[w]; ok {
 			out = append(out, strings.Fields(x)...)
 		} else if x := strings.TrimSuffix(w, "s"); x != w && generic[x] && !generic[w] {
@@ -56,10 +56,13 @@ func Tokens(s string) []string {
 	return out
 }
 
-// initials joins a run of single letters into one word, so "D.O.D. Ponds"
-// and "DOD Ponds" read the same.
-func initials(ws []string) []string {
+// initials joins each run of single letters into one word, so "D.O.D.
+// Ponds" reads like "DOD Ponds". It reports whether anything was joined.
+// Names are compared both ways, since "W.C. Putnam" also needs its "c" to
+// match "William C. Putnam".
+func initials(ws []string) ([]string, bool) {
 	var out []string
+	joined := false
 	for i := 0; i < len(ws); i++ {
 		j := i
 		for j < len(ws) && len(ws[j]) == 1 && unicode.IsLetter(rune(ws[j][0])) {
@@ -67,10 +70,23 @@ func initials(ws []string) []string {
 		}
 		if j-i >= 2 {
 			out = append(out, strings.Join(ws[i:j], ""))
-			i = j - 1
+			i, joined = j-1, true
 			continue
 		}
 		out = append(out, ws[i])
+	}
+	return out, joined
+}
+
+// variants gives a pair of names' tokens as written, then with initials
+// joined if that changes either.
+func variants(a, b string) [][2][]string {
+	ta, tb := Tokens(a), Tokens(b)
+	out := [][2][]string{{ta, tb}}
+	ja, oka := initials(ta)
+	jb, okb := initials(tb)
+	if oka || okb {
+		out = append(out, [2][]string{ja, jb})
 	}
 	return out
 }
@@ -115,13 +131,16 @@ func dice(a, b map[string]bool) float64 {
 // Recreation Area") is also scored without the lake, so it matches the unit
 // itself better than the whole reservoir.
 func Similarity(a, b string) float64 {
-	ta, tb := Tokens(a), Tokens(b)
-	s := similarity(ta, tb)
-	if t, ok := withoutSetting(ta); ok {
-		s = max(s, similarity(t, tb))
-	}
-	if t, ok := withoutSetting(tb); ok {
-		s = max(s, similarity(ta, t))
+	s := 0.0
+	for _, v := range variants(a, b) {
+		ta, tb := v[0], v[1]
+		s = max(s, similarity(ta, tb))
+		if t, ok := withoutSetting(ta); ok {
+			s = max(s, similarity(t, tb))
+		}
+		if t, ok := withoutSetting(tb); ok {
+			s = max(s, similarity(ta, t))
+		}
 	}
 	return s
 }
@@ -167,9 +186,18 @@ var weak = map[string]bool{
 // the same words apart from generic ones ("New River Trail"), or are the same
 // name made only of generic words.
 func SharesName(a, b string) bool {
-	ca, cb := core(Tokens(a)), core(Tokens(b))
+	for _, v := range variants(a, b) {
+		if sharesName(v[0], v[1]) {
+			return true
+		}
+	}
+	return false
+}
+
+func sharesName(ta, tb []string) bool {
+	ca, cb := core(ta), core(tb)
 	if len(ca) == 0 && len(cb) == 0 {
-		return Key(a) == Key(b) // "Wilderness State Park" is all generic words
+		return strings.Join(ta, " ") == strings.Join(tb, " ") // "Wilderness State Park" is all generic words
 	}
 	same := len(ca) > 0 && len(ca) == len(cb)
 	for w := range ca {

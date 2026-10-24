@@ -19,6 +19,8 @@ func TestSimilarity(t *testing.T) {
 		{"Culpeper Battlefield State Park", "Culpeper Battlefields State Park", 0.99, 1},
 		{"Paynetown on Monroe Lake State Recreation Area", "Paynetown State Recreation Area", 0.99, 1},
 		{"Paynetown on Monroe Lake State Recreation Area", "Monroe Lake", 0, 0.7},
+		{"S B Elliott State Park", "Simon B. Elliott State Park", 0.5, 1},
+		{"D.O.D. Ponds Wildlife Management Area", "DOD Ponds Wildlife Management Area", 0.99, 1},
 	}
 	for _, c := range cases {
 		s := Similarity(c.a, c.b)
@@ -50,6 +52,7 @@ func TestSharesName(t *testing.T) {
 		{"Wilderness State Park", "Wilderness State Park", true},
 		{"Lakeshore State Park", "Wilderness State Park", false},
 		{"D.O.D. Ponds Wildlife Management Area", "DOD Ponds Wildlife Management Area", true},
+		{"William C. Putnam State Forest", "W.C. Putnam State Forest", true},
 	}
 	for _, c := range cases {
 		if got := SharesName(c.a, c.b); got != c.want {
