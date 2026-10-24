@@ -32,15 +32,30 @@ jobs:
               d = get("https://www.arcgis.com/sharing/rest/search", q=q, num=25, f="json")
               print("## search", q)
               for r in d.get("results", []): print("   ", r["title"], "|", r["owner"], "|", r.get("url"))
-          qs = ["Suwannee River Water Management District lands", "Florida Managed Areas FNAI", "Florida conservation lands", "SFWMD lands", "Florida state parks boundaries",
-                "Oklahoma wildlife management areas ODWC", "Oklahoma Department of Wildlife Conservation", "Oklahoma Historical Society sites",
-                "Michigan DNR state game areas", "Michigan DNR managed lands", "Michigan state wildlife areas boundaries",
-                "Wisconsin DNR managed lands", "Wisconsin state natural areas", "Kansas wildlife and parks public lands", "KDWP public lands",
-                "Louisiana wildlife management areas LDWF", "Nebraska Game and Parks public lands", "NYSDEC lands", "DEC state forests New York",
-                "New Jersey wildlife management areas", "NJDEP state lands", "Iowa DNR managed lands", "TPWD wildlife management areas", "Texas Historical Commission state historic sites"]
-          for q in qs:
-              d = get("https://www.arcgis.com/sharing/rest/search", q=q + ' AND (type:"Feature Service" OR type:"Map Service")', num=12, f="json")
-              print("##", q)
-              for r in d.get("results", []):
-                  if "PADUS" in r["title"] or "PAD-US" in r["title"] or "Amrivers" in r["owner"]: continue
-                  print("   ", r["title"], "|", r["owner"], "|", r.get("url"))
+          A="https://services1.arcgis.com/"
+          for u in ["https://services1.arcgis.com/59dBAbzYnRk8johU/arcgis/rest/services/SRWMD_LM_Ownership/FeatureServer",
+                    "https://services.arcgis.com/9Jk4Zl9KofTtvg3x/arcgis/rest/services/FL_Conservation_Lands_web/FeatureServer",
+                    A+"jRf8jjFwxedITdFe/arcgis/rest/services/Public_WMA_Boundaries/FeatureServer",
+                    "https://services3.arcgis.com/Jdnp1TjADvSDxMAX/arcgis/rest/services/DNRLOTSParcelsOPENDATA/FeatureServer",
+                    "https://services3.arcgis.com/Jdnp1TjADvSDxMAX/arcgis/rest/services/DNRManagementBoundariesOPENDATA/FeatureServer",
+                    "https://dnrmaps.wi.gov/arcgis/rest/services/LF_DML/LF_AGOL_STAGING_WTM_Ext/MapServer",
+                    A+"q2CglofYX6ACNEeu/arcgis/rest/services/KDWPT_Wildlife_Areas/FeatureServer",
+                    A+"q2CglofYX6ACNEeu/arcgis/rest/services/KDWP_Spatial_Directory_WFL1/FeatureServer",
+                    A+"6euNCaGPCgCzgAVF/arcgis/rest/services/LDWF_WMA_Refuge/FeatureServer",
+                    "https://services6.arcgis.com/DZHaqZm9cxOD4CWM/arcgis/rest/services/NYS_DEC_Lands/FeatureServer",
+                    "https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/TPWD_WMAs_and_State_Parks_Boundaries/FeatureServer",
+                    A+"1mtXwieMId59thmg/arcgis/rest/services/WMA_Boundaries_4PublicDistribution/FeatureServer",
+                    "https://services2.arcgis.com/r6iFVcMJeA4kB4GC/arcgis/rest/services/LandInventory/FeatureServer",
+                    A+"QWdNfRs7lkPq4g4Q/arcgis/rest/services/Open_Space__State_Owned__Generalized_h/FeatureServer",
+                    "https://ca.dep.state.fl.us/arcgis/rest/services/OpenData/PARKS_BOUNDARIES/MapServer"]:
+              d = get(u, f="json")
+              info(u)
+              for l in d.get("layers", [])[:14]:
+                  lu = u + "/" + str(l["id"])
+                  ld = get(lu, f="json")
+                  if ld.get("geometryType") != "esriGeometryPolygon": continue
+                  info(lu)
+                  print("   count", get(lu + "/query", where="1=1", returnCountOnly="true", f="json"))
+                  sample(lu, n=4)
+          for q in ["Nebraska Game and Parks Commission", "NGPC public access", "Oklahoma Historical Society", "Kansas Historical Society state historic sites", "Michigan state harbors", "Wisconsin DNR state natural areas"]:
+              search(q + ' AND (type:"Feature Service" OR type:"Map Service")')
