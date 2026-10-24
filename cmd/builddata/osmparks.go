@@ -11,14 +11,6 @@ import (
 // weak official outline's, when the area holds the pin and the outline doesn't.
 const osmSlack = 0.1
 
-// looseName is a confident official outline's score low enough that an
-// OpenStreetMap area named far better (by osmLead) beats it: the whole
-// reservoir ("Salamonie Lake") for one of its recreation areas.
-const (
-	looseName = 0.7
-	osmLead   = 0.3
-)
-
 // useOSM gives a park the outline cmd/fetchosmparks found in OpenStreetMap,
 // where PAD-US and the agency maps have nothing better: pieces of bigger
 // units, city and county parks, and places too new for PAD-US.
@@ -45,13 +37,10 @@ func useOSM(path string, parks []*park) (int, error) {
 		// to a nearly as well named one that confidently holds the pin
 		// ("Savage Gulf State Park" for Savage Gulf State Natural Area).
 		// Anything less and it's often the unit next door (Torrey Pines State
-		// Natural Reserve for Torrey Pines State Beach). A confident but
-		// loosely named official outline gives way only to a far better
-		// named area that holds the pin too.
+		// Natural Reserve for Torrey Pines State Beach).
 		switch c := p.best; {
 		case c == nil, c.confidence() == "none":
 		case c.confidence() == "medium" && (score > c.Score || o.confidence() == "high" && score >= c.Score-osmSlack):
-		case c.confidence() == "high" && !c.Route && c.Score < looseName && o.confidence() == "high" && score >= c.Score+osmLead:
 		default:
 			return
 		}
