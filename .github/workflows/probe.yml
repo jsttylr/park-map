@@ -1,0 +1,18 @@
+name: probe
+on:
+  push:
+    paths: ['.github/workflows/probe.yml']
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Virginia DCR conservation lands
+        run: |
+          sudo apt-get install -y -qq gdal-bin > /dev/null
+          curl -fsSL --retry 3 -A "Mozilla/5.0" -o conslands.zip https://www.dcr.virginia.gov/natural-heritage/document/conslands.zip
+          ls -la conslands.zip && unzip -l conslands.zip
+          ogrinfo -ro -so -al /vsizip/conslands.zip | head -60
+          for f in MAAGENCY MATYPE MALEVEL BNDORIGIN PUBACCESS; do echo "== $f"; ogr2ogr -f CSV /vsistdout/ /vsizip/conslands.zip -dialect sqlite -sql "SELECT $f, count(*) AS n FROM conslands GROUP BY $f ORDER BY n DESC" 2>&1 | head -60; done
+          echo "== samples"
+          ogr2ogr -f CSV /vsistdout/ /vsizip/conslands.zip -dialect sqlite -sql "SELECT LABEL, MANAME, MATYPE, MAAGENCY, BNDORIGIN, GISACRE FROM conslands WHERE MANAME LIKE '%Sweet Run%' OR MANAME LIKE '%Culpeper%' OR MANAME LIKE '%Chesterfield%' OR MANAME LIKE '%Chilton%' OR MANAME LIKE '%Accotink%' OR MANAME LIKE '%Wallops%' OR MANAME LIKE '%Fort Marcy%' OR MANAME LIKE '%Cape Henry%' OR MANAME LIKE '%Jamestown%' OR MANAME LIKE '%Grassy Hill%'" 2>&1 | head -80
