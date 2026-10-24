@@ -115,6 +115,7 @@ Leave off `format=text` to get the same answer as JSON. The email gateway uses t
 | Park boundaries | U.S. Geological Survey (USGS) Gap Analysis Project, [Protected Areas Database of the United States (PAD-US) 4.1](https://www.usgs.gov/programs/gap-analysis-project/science/pad-us-data-overview), U.S. Geological Survey data release ([ScienceBase](https://www.sciencebase.gov/catalog/item/652d4fc5d34e44db0e2ee45e)) | Public domain |
 | More park boundaries and national trail routes | U.S. [Bureau of Land Management](https://gis.blm.gov/arcgis/rest/services), [Fish and Wildlife Service](https://services.arcgis.com/QVENGdaPbd4LUkLV/arcgis/rest/services), [Army Corps of Engineers](https://services7.arcgis.com/n1YM8pTrFmm7L4hs/arcgis/rest/services/usace_recreation_areas/FeatureServer), [Bureau of Reclamation](https://services1.arcgis.com/ixD30sld6F8MQ7V5/arcgis/rest/services/ReclamationRecreationManagementAreas/FeatureServer) and [National Park Service](https://services1.arcgis.com/fBc8EJBxQRMcHlei/arcgis/rest/services) map services; `cmd/fetchlayers/sources.go` lists each layer | Public domain |
 | Trail routes | © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, state extracts from [Geofabrik](https://download.geofabrik.de) | [ODbL](https://opendatacommons.org/licenses/odbl/); the trail areas in the image are a derived database under the same license |
+| State park, forest and wildlife land maps | [Virginia DCR Natural Heritage](https://www.dcr.virginia.gov/natural-heritage/cldownload) conservation lands (DCR, Forestry and federal land only), [Maryland DNR](https://mdgeodata.md.gov/imap/rest/services/Environment/MD_ProtectedLands/FeatureServer/0) owned lands and [State Wildlands](https://dnr.geodata.md.gov/dnrdata/rest/services/AIMS/Wildlands_Preservation_System/MapServer/0), [Tennessee TDEC](https://tdeconline.tn.gov/arcgis/rest/services) natural areas and state park lands, [West Virginia public lands](https://services1.arcgis.com/cTNi34MxOdcfum3A/ArcGIS/rest/services/WV_Master_PublicLands_042120/FeatureServer/0), [NC Wildlife Resources Commission](https://services1.arcgis.com/YfqBAUM5nWR3yhGP/ArcGIS/rest/services/gamelands_general/FeatureServer/21) game lands, [Kentucky](https://kygisserver.ky.gov/arcgis/rest/services/WGS84WM_Services) public hunting areas, nature preserves and state forests | Each state's terms; Virginia's DCR data may not be redistributed for profit |
 | Park outlines not in PAD-US or the agency maps | © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, state extracts from [Geofabrik](https://download.geofabrik.de) | [ODbL](https://opendatacommons.org/licenses/odbl/); those outlines in the image are a derived database under the same license |
 | Summit list | [Summits on the Air](https://www.sota.org.uk) ([summitslist.csv](https://storage.sota.org.uk/summitslist.csv)) | Published by SOTA |
 | Activation zones | [sotl.as](https://sotl.as) and its contributors, published by [OffARO/sota-az](https://github.com/OffARO/sota-az) | Activation zones © sotl.as contributors, free non-commercial use |
@@ -129,13 +130,17 @@ These are the choices behind what the map draws, and why.
 
 ### Boundaries are matched by name
 
-POTA doesn't publish park boundaries, so each park is matched to the USGS Protected Areas Database (PAD-US) by its name and location. Most matches are clean. A match that's only fair is still drawn, but listed as a weak match so it can be checked. A few will be wrong, and about 1,950 parks have no boundary at all (see [Parks with no boundary](#parks-with-no-boundary)).
+POTA doesn't publish park boundaries, so each park is matched to the USGS Protected Areas Database (PAD-US) by its name and location. Most matches are clean. A match that's only fair is still drawn, but listed as a weak match so it can be checked. A few will be wrong, and about 1,900 parks have no boundary at all (see [Parks with no boundary](#parks-with-no-boundary)).
 
 A POTA pin sometimes sits a little outside its park, at a parking lot or moved to keep the POTA map readable, so a pin within 100 m of a well-named outline counts as inside it.
 
 ### Agency maps fill the gaps in PAD-US
 
 PAD-US has no outline of its own for many BLM recreation and herd management areas, Army Corps and Reclamation recreation areas, and some refuges. For those, the map uses the agencies' own maps, matched the same way. They're only used where PAD-US has nothing that fits well, so a park PAD-US already draws keeps that outline, and they need a good name match: a campground's pin sitting inside a big BLM recreation area of another name doesn't take that area.
+
+### State maps, starting near Virginia
+
+Some states publish maps of their own parks, forests, natural areas and wildlife lands that are newer or more complete than PAD-US. The map uses them for Virginia, Maryland, North Carolina, Tennessee, Kentucky and West Virginia so far, matched the same way as the agency maps and only where PAD-US has nothing that fits well. Virginia's conservation lands database gathers land from many owners; only the state's own parks, preserves and forests and federal land are taken from it, because some other contributors don't allow their data to be passed on.
 
 ### OpenStreetMap fills in the rest
 
@@ -175,11 +180,12 @@ The `build` workflow on GitHub does it all:
 1. Reads PAD-US from the `padus-4.1` release (the USGS download sits behind a captcha, so the file was uploaded there by hand). If that file is missing it pages the USGS web service instead, which takes about half an hour.
 2. Downloads the OpenStreetMap extract from Geofabrik for each state with a trail park, and cuts it down with osmium to trail routes and named paths. `cmd/fetchtrails` matches each trail park to the route of the same name nearest its POTA location, and `scripts/buffer_trails.py` widens each route to 100 ft either side. The trail routes are cached for the month.
 3. `cmd/fetchlayers` downloads the federal agency maps listed in `cmd/fetchlayers/sources.go` (BLM, Fish and Wildlife Service, Army Corps, Reclamation and National Park Service) from their public map services, and the official routes of the national historic trails. `cmd/fetchtrails -official` uses those routes over OpenStreetMap's. Cached for the month.
-4. Downloads each state's OpenStreetMap extract again and cuts it down with osmium to named park and protected areas. `cmd/fetchosmparks` matches each park to the area of the same name and sort around its POTA location. Cached for the month.
-5. `cmd/builddata` matches every active US POTA park to PAD-US and the agency maps, uses the OpenStreetMap areas where those have nothing that fits, applies the trail areas, and writes `us-parks.geojson.gz`. It also writes `report.csv`, which is pushed to the `reports` branch.
-6. `cmd/buildsota` joins the SOTA summits list with the sotl.as activation zones for the US associations and writes `sota.geojson.gz`.
-7. `cmd/parkmap -write-regions` works out the n-fer overlap areas and saves them, so the server doesn't have to at startup. `cmd/parkmap -selftest` then loads everything and prints sample lookups as a check.
-8. The Docker image is built with the data inside and pushed to `ghcr.io/jsttylr/park-map`.
+4. `cmd/fetchlayers -state` downloads the state maps listed in the same file, reading Virginia's zipped shapefile with GDAL's ogr2ogr. Cached until the list changes, and at most a month.
+5. Downloads each state's OpenStreetMap extract again and cuts it down with osmium to named park and protected areas. `cmd/fetchosmparks` matches each park to the area of the same name and sort around its POTA location. Cached for the month.
+6. `cmd/builddata` matches every active US POTA park to PAD-US, the agency maps and the state maps, uses the OpenStreetMap areas where those have nothing that fits, applies the trail areas, and writes `us-parks.geojson.gz`. It also writes `report.csv`, which is pushed to the `reports` branch.
+7. `cmd/buildsota` joins the SOTA summits list with the sotl.as activation zones for the US associations and writes `sota.geojson.gz`.
+8. `cmd/parkmap -write-regions` works out the n-fer overlap areas and saves them, so the server doesn't have to at startup. `cmd/parkmap -selftest` then loads everything and prints sample lookups as a check.
+9. The Docker image is built with the data inside and pushed to `ghcr.io/jsttylr/park-map`.
 
 ## Disclaimer
 
