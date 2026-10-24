@@ -139,6 +139,7 @@ func main() {
 	report := flag.String("report", "report.csv", "output match report CSV")
 	show := flag.String("show", "", "comma-separated references whose candidates to print")
 	trails := flag.String("trails", "", "trail areas from scripts/buffer_trails.py (GeoJSON lines), used instead of PAD-US for those parks")
+	osm := flag.String("osm", "", "OpenStreetMap park outlines from cmd/fetchosmparks, used where PAD-US and the agency maps have nothing better")
 	flag.Parse()
 	layers := flag.Args()
 	if len(layers) == 0 {
@@ -285,6 +286,13 @@ func main() {
 		p.otherGeom = nil
 	}
 
+	// OpenStreetMap outlines first, so a trail park with both an outline
+	// and a route still gets its route.
+	if *osm != "" {
+		if _, err := useOSM(*osm, parks); err != nil {
+			log.Fatal(err)
+		}
+	}
 	if *trails != "" {
 		n, err := useTrails(*trails, parks)
 		if err != nil {

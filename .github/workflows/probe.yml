@@ -1,0 +1,26 @@
+name: probe
+on:
+  push:
+    paths: ['.github/workflows/probe.yml']
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Virginia park outlines from OpenStreetMap
+        run: |
+          sudo apt-get install -y -qq osmium-tool > /dev/null
+          curl -fsSL -o all_parks_ext.csv https://pota.app/all_parks_ext.csv
+          curl -fsSL --retry 3 -o state.osm.pbf https://download.geofabrik.de/north-america/us/virginia-latest.osm.pbf
+          ls -la state.osm.pbf
+          osmium tags-filter --overwrite -o areas.osm.pbf state.osm.pbf wr/leisure=park,nature_reserve,recreation_ground,garden wr/boundary=protected_area,national_park wr/landuse=recreation_ground
+          ls -la areas.osm.pbf
+          osmium export areas.osm.pbf -f geojsonseq --geometry-types=polygon --add-unique-id=type_id | gzip > areas.geojsonseq.gz
+          ls -la areas.geojsonseq.gz
+          zcat areas.geojsonseq.gz | head -2 | cut -c1-400
+          zcat areas.geojsonseq.gz | wc -l
+          go run ./cmd/fetchosmparks -areas areas.geojsonseq.gz -out osm-parks.geojsonl.gz | grep -E 'US-VA|==' | head -80
