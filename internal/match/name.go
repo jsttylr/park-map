@@ -47,6 +47,8 @@ func Tokens(s string) []string {
 	for _, w := range strings.Fields(s) {
 		if x, ok := abbrev[w]; ok {
 			out = append(out, strings.Fields(x)...)
+		} else if x := strings.TrimSuffix(w, "s"); x != w && generic[x] && !generic[w] {
+			out = append(out, x) // "Battlefields" is the kind of land "Battlefield" is
 		} else {
 			out = append(out, w)
 		}

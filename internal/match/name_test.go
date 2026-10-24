@@ -16,6 +16,7 @@ func TestSimilarity(t *testing.T) {
 		{"Isle Royale", "Isle Royale National Park", 0.8, 1},
 		{"Bear Creek State Park", "Pine Lake State Park", 0, 0.2},
 		{"Okefenokee National Wildlife Refuge", "Okefenokee NWR", 0.99, 1},
+		{"Culpeper Battlefield State Park", "Culpeper Battlefields State Park", 0.99, 1},
 	}
 	for _, c := range cases {
 		s := Similarity(c.a, c.b)

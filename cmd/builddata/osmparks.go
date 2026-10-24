@@ -25,10 +25,11 @@ func useOSM(path string, parks []*park) (int, error) {
 		contains, _ := f.Properties["contains"].(bool)
 		km, _ := f.Properties["km"].(float64)
 		// A confident official outline, or a trail's route, wins. A weak
-		// official match gives way only to a better-named OpenStreetMap one.
+		// official match gives way only to a better-named OpenStreetMap one,
+		// or an equally named one that holds the pin.
 		switch c := p.best; {
 		case c == nil, c.confidence() == "none":
-		case c.confidence() == "medium" && score > c.Score:
+		case c.confidence() == "medium" && (score > c.Score || score == c.Score && contains && !c.pinIn()):
 		default:
 			return
 		}

@@ -93,9 +93,8 @@ func titled(s string) string {
 
 var client = &http.Client{Timeout: 5 * time.Minute}
 
-// userAgent names the map to the services; some (Tennessee's) refuse Go's
-// default.
-const userAgent = "Mozilla/5.0 (compatible; park-map; +https://github.com/jsttylr/park-map)"
+// userAgent is a browser's, since some services (Tennessee's) refuse Go's.
+const userAgent = "Mozilla/5.0"
 
 // get runs one request, waiting and retrying while the service is busy.
 func get(u string, v url.Values) ([]byte, error) {
@@ -106,11 +105,19 @@ func get(u string, v url.Values) ([]byte, error) {
 			log.Printf("retry in %v: %v", wait, last)
 			time.Sleep(wait)
 		}
-		req, err := http.NewRequest("POST", u, strings.NewReader(v.Encode()))
+		// A GET where the query fits in the URL: some services (Tennessee's)
+		// refuse a POST from a data center.
+		q := v.Encode()
+		req, err := http.NewRequest("GET", u+"?"+q, nil)
+		if len(q) > 4000 {
+			req, err = http.NewRequest("POST", u, strings.NewReader(q))
+		}
 		if err != nil {
 			return nil, err
 		}
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		if req.Method == "POST" {
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		}
 		req.Header.Set("User-Agent", userAgent)
 		resp, err := client.Do(req)
 		if err != nil {
