@@ -439,11 +439,22 @@ func choose(parks []*park, show string) {
 	// The agency layers fill in parks PAD-US can't draw well; a park PAD-US
 	// already draws confidently keeps that outline. An agency outline also
 	// needs a good name match, not just the pin inside it: a campground's
-	// pin sits inside some large BLM recreation area of another name.
+	// pin sits inside some large BLM recreation area of another name. A PAD-US
+	// outline the park will lose to a better-named park ("Ouachita Leflore
+	// Unit Wildlife Management Area" inside Ouachita National Forest) doesn't
+	// count.
+	padTop := map[string]float64{}
+	for _, p := range parks {
+		for k, c := range p.cands {
+			if !c.Extra && c.confidence() != "none" && c.Score > padTop[k] {
+				padTop[k] = c.Score
+			}
+		}
+	}
 	for _, p := range parks {
 		maps.DeleteFunc(p.cands, func(_ string, c *candidate) bool { return c.Extra && c.Score < minHigh })
 		for _, c := range p.cands {
-			if !c.Extra && c.confidence() == "high" {
+			if !c.Extra && c.confidence() == "high" && (c.Score >= padTop[c.Key]-dominated || match.CoreWithin(p.Name, c.Unit)) {
 				maps.DeleteFunc(p.cands, func(_ string, c *candidate) bool { return c.Extra })
 				break
 			}

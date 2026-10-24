@@ -198,7 +198,7 @@ jobs:
           A=""; if [ -s agency-areas.geojsonl.gz ]; then A="agency-areas.geojsonl.gz"; fi
           if [ -s state-areas.geojsonl.gz ]; then A="$A state-areas.geojsonl.gz"; fi
           O=""; if [ -s osm-parks.geojsonl.gz ]; then O="-osm osm-parks.geojsonl.gz"; fi
-          mkdir -p data && go run ./cmd/builddata -pota all_parks_ext.csv -out data/us-parks.geojson.gz -report report.csv $T $O -show US-5508,US-5509,US-9936,US-11719,US-0573,US-10015 padus.geojsonl.gz $A
+          mkdir -p data && go run ./cmd/builddata -pota all_parks_ext.csv -out data/us-parks.geojson.gz -report report.csv $T $O -show US-6352,US-6361,US-8140,US-13117,US-1556,US-1461,US-6366 padus.geojsonl.gz $A
       - name: Download SOTA summits and sotl.as activation zones
         env:
           GH_TOKEN: ${{ github.token }}
