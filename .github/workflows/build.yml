@@ -165,7 +165,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: state-areas.geojsonl.gz
-          key: state-v1-${{ steps.month.outputs.m }}
+          key: state-${{ hashFiles('cmd/fetchlayers/*.go') }}-${{ steps.month.outputs.m }}
       - name: State layers
         id: fetchstate
         if: steps.state.outputs.cache-hit != 'true'
@@ -179,7 +179,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: state-areas.geojsonl.gz
-          key: state-v1-${{ steps.month.outputs.m }}
+          key: state-${{ hashFiles('cmd/fetchlayers/*.go') }}-${{ steps.month.outputs.m }}
       - name: Use official trail routes over OpenStreetMap
         run: |
           if [ -s agency-lines.geojsonl.gz ]; then
