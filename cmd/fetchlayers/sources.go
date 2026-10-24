@@ -62,6 +62,16 @@ var mdName = spelled("DNRName", map[string]string{
 // kyName spells out "WMA" in Kentucky's hunting area names ("Redbird WMA").
 var kyName = spelled("AREANAME", map[string]string{"WMA": wma})
 
+// okName names an Oklahoma fishing lake the way POTA does ("Lake Vanderwork
+// State Fishing Lake"); the wildlife management areas carry their full name.
+func okName(a attrs) string {
+	n := a.s("WMANAME")
+	if a.s("WMATYPE") == "PFA" && !strings.Contains(n, "Fishing") {
+		return n + " State Fishing Lake"
+	}
+	return n
+}
+
 // ilName adds the kind of land to an Illinois DNR site's name ("Devil's
 // Island" is a state fish and wildlife area).
 func ilName(a attrs) string {
@@ -219,6 +229,67 @@ var sources = []source{
 	// State Game Land").
 	{Label: "Pennsylvania state game lands", URL: "https://services1.arcgis.com/k8yxvICm95iIFicb/arcgis/rest/services/State_Game_Lands_Boundaries/FeatureServer/300",
 		Name: func(a attrs) string { return "PA " + a.s("sgl") + " State Game Land" }, State: "PA", Manager: "PGC", Designation: "STATE", Class: "PA State Game Lands"},
+
+	// The third ring. Florida: the Natural Areas Inventory's map of state
+	// conservation lands (parks, forests, wildlife management areas and
+	// water management district lands) and the Suwannee River district's
+	// tracts, which POTA names "... State Conservation Area".
+	{Label: "Florida state conservation lands", URL: "https://services.arcgis.com/9Jk4Zl9KofTtvg3x/arcgis/rest/services/FL_Conservation_Lands_web/FeatureServer/9",
+		Where: "MATYPE2 = 'State'", Name: field("MANAME", ""), State: "FL", Manager: "FNAI", Designation: "STATE", Class: "FL Conservation Lands"},
+	{Label: "Suwannee River district tracts", URL: "https://services1.arcgis.com/59dBAbzYnRk8johU/arcgis/rest/services/SRWMD_LM_Ownership/FeatureServer/0",
+		Where: "INTEREST LIKE 'FEE%' AND TRACT_NAME NOT LIKE '%STATE PARK%'", Name: field("TRACT_NAME", "STATE CONSERVATION AREA"),
+		State: "FL", Manager: "SRWMD", Designation: "STATE", Class: "FL SRWMD Tracts"},
+
+	// Oklahoma: Wildlife Department management areas and fishing lakes.
+	{Label: "Oklahoma wildlife management areas", URL: "https://services1.arcgis.com/jRf8jjFwxedITdFe/arcgis/rest/services/Public_WMA_Boundaries/FeatureServer/1",
+		Name: okName, State: "OK", Manager: "ODWC", Designation: "STATE", Class: "OK WMAs"},
+
+	// Michigan DNR's project boundaries for parks, game and wildlife areas
+	// and hatcheries (the forest units are whole districts, so they're left
+	// out).
+	{Label: "Michigan DNR areas", URL: "https://services3.arcgis.com/Jdnp1TjADvSDxMAX/arcgis/rest/services/DNRLOTSParcelsOPENDATA/FeatureServer/13",
+		Where: "Division IN ('Wildlife', 'Parks', 'Fish')", Name: field("UnitName", ""), State: "MI", Manager: "MI DNR", Designation: "STATE", Class: "MI DNR Areas"},
+
+	// Wisconsin DNR's managed lands, one outline per property.
+	{Label: "Wisconsin DNR lands", URL: "https://dnrmaps.wi.gov/arcgis/rest/services/LF_DML/LF_AGOL_STAGING_WTM_Ext/MapServer/0",
+		Name: field("PROP_NAME", ""), State: "WI", Manager: "WI DNR", Designation: "STATE", Class: "WI DNR Lands"},
+
+	// Kansas: wildlife areas and fishing lakes, and the state parks and
+	// wildlife areas on KDWP's public land map.
+	{Label: "Kansas wildlife areas", URL: "https://services1.arcgis.com/q2CglofYX6ACNEeu/arcgis/rest/services/KDWPT_Wildlife_Areas/FeatureServer/0",
+		Name: field("NAME", ""), State: "KS", Manager: "KDWP", Designation: "STATE", Class: "KS Wildlife Areas"},
+	{Label: "Kansas public lands", URL: "https://services1.arcgis.com/q2CglofYX6ACNEeu/arcgis/rest/services/KDWP_Spatial_Directory_WFL1/FeatureServer/4",
+		Where: "MGT_UNIT LIKE 'State%' OR MGT_UNIT LIKE 'SFL%'", Name: field("NAME", ""), State: "KS", Manager: "KDWP", Designation: "STATE", Class: "KS Public Lands"},
+
+	// Louisiana Wildlife and Fisheries management areas and refuges.
+	{Label: "Louisiana WMAs and refuges", URL: "https://services1.arcgis.com/6euNCaGPCgCzgAVF/arcgis/rest/services/LDWF_WMA_Refuge/FeatureServer/0",
+		Name: spelled("NAME", map[string]string{"WMA": wma}), State: "LA", Manager: "LDWF", Designation: "STATE", Class: "LA WMAs"},
+
+	// New York DEC lands (state forests, forest preserve, wildlife
+	// management and unique areas), without offices and access sites.
+	{Label: "New York DEC lands", URL: "https://services6.arcgis.com/DZHaqZm9cxOD4CWM/arcgis/rest/services/NYS_DEC_Lands/FeatureServer/0",
+		Where: "CATEGORY NOT IN ('ADMINISTRATIVE', 'FISHING ACCESS', 'WATERWAY ACCESS', 'LEASED ACCESS')",
+		Name:  spelled("FACILITY", map[string]string{"WMA": wma}), State: "NY", Manager: "NYSDEC", Designation: "STATE", Class: "NY DEC Lands"},
+
+	// Texas Parks and Wildlife management areas, and its parks, natural
+	// areas and historic sites as the highway department publishes them.
+	{Label: "Texas wildlife management areas", URL: "https://services1.arcgis.com/1mtXwieMId59thmg/arcgis/rest/services/WMA_Boundaries_4PublicDistribution/FeatureServer/0",
+		Name: field("LoName", ""), State: "TX", Manager: "TPWD", Designation: "STATE", Class: "TX WMAs"},
+	{Label: "Texas state parks", URL: "https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/TPWD_WMAs_and_State_Parks_Boundaries/FeatureServer/1",
+		Name:  spelled("LoName", map[string]string{"SP": "State Park", "SNA": "State Natural Area", "SHS": "State Historic Site"}),
+		State: "TX", Manager: "TPWD", Designation: "STATE", Class: "TX State Parks"},
+
+	// Nebraska Game and Parks properties: parks, recreation areas,
+	// historical parks and wildlife management areas.
+	{Label: "Nebraska Game and Parks properties", URL: "https://services5.arcgis.com/IOshH1zLrIieqrNk/arcgis/rest/services/NPGCProperties2023_2024/FeatureServer/268",
+		Where: "Status = 'Active'", Name: spelled("AreaName", map[string]string{
+			"WMA": wma, "SRA": "State Recreation Area", "SP": "State Park", "SHP": "State Historical Park", "SHS": "State Historic Site",
+		}), State: "NE", Manager: "NGPC", Designation: "STATE", Class: "NE NGPC Properties"},
+
+	// New Jersey's state-owned open space (parks, forests, wildlife
+	// management areas, Natural Lands Trust preserves).
+	{Label: "New Jersey state open space", URL: "https://services1.arcgis.com/QWdNfRs7lkPq4g4Q/arcgis/rest/services/Open_Space__State_Owned__Generalized_h/FeatureServer/67",
+		Name: field("FEATURE_NAME", ""), State: "NJ", Manager: "NJDEP", Designation: "STATE", Class: "NJ State Open Space"},
 
 	// Official routes of the national historic and scenic trails, mostly old
 	// roads and water routes that OpenStreetMap doesn't map as one trail.

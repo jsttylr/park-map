@@ -41,6 +41,8 @@ func TestStateNames(t *testing.T) {
 		{ilName(attrs{"Name": "Devil's Island", "CLASSIFICA": "SFWA"}), "Devil's Island State Fish and Wildlife Area"},
 		{ilName(attrs{"Name": "Pere Marquette State Park", "CLASSIFICA": "SP"}), "Pere Marquette State Park"},
 		{ilName(attrs{"Name": "Burning Star No. 5", "CLASSIFICA": "NC"}), "Burning Star No. 5"},
+		{okName(attrs{"WMANAME": "Lake Vanderwork", "WMATYPE": "PFA"}), "Lake Vanderwork State Fishing Lake"},
+		{okName(attrs{"WMANAME": "Sans Bois Wildlife Management Area", "WMATYPE": "WMA"}), "Sans Bois Wildlife Management Area"},
 	} {
 		if c.got != c.want {
 			t.Errorf("got %q, want %q", c.got, c.want)
