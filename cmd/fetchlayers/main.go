@@ -93,6 +93,10 @@ func titled(s string) string {
 
 var client = &http.Client{Timeout: 5 * time.Minute}
 
+// userAgent names the map to the services; some (Tennessee's) refuse Go's
+// default.
+const userAgent = "Mozilla/5.0 (compatible; park-map; +https://github.com/jsttylr/park-map)"
+
 // get runs one request, waiting and retrying while the service is busy.
 func get(u string, v url.Values) ([]byte, error) {
 	var last error
@@ -102,7 +106,13 @@ func get(u string, v url.Values) ([]byte, error) {
 			log.Printf("retry in %v: %v", wait, last)
 			time.Sleep(wait)
 		}
-		resp, err := client.PostForm(u, v)
+		req, err := http.NewRequest("POST", u, strings.NewReader(v.Encode()))
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("User-Agent", userAgent)
+		resp, err := client.Do(req)
 		if err != nil {
 			last = err
 			continue
@@ -229,7 +239,12 @@ func fetchZip(s source, w io.Writer) (int, error) {
 		return 0, err
 	}
 	defer os.Remove(tmp.Name())
-	resp, err := client.Get(s.URL)
+	req, err := http.NewRequest("GET", s.URL, nil)
+	if err != nil {
+		return 0, err
+	}
+	req.Header.Set("User-Agent", userAgent)
+	resp, err := client.Do(req)
 	if err != nil {
 		return 0, err
 	}

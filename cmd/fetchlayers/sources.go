@@ -30,6 +30,24 @@ func blmRec(a attrs) string {
 	return n + " BLM"
 }
 
+// mdName spells out the kind of land at the end of a Maryland DNR name
+// ("SASSAFRAS NRMA").
+func mdName(a attrs) string {
+	n := a.s("DNRName")
+	i := strings.LastIndex(n, " ")
+	if i < 0 {
+		return n
+	}
+	kinds := map[string]string{
+		"SP": "State Park", "SF": "State Forest", "WMA": "Wildlife Management Area", "NRMA": "Natural Resources Management Area",
+		"NA": "Natural Area", "NEA": "Natural Environment Area", "FMA": "Fish Management Area", "SB": "State Battlefield",
+	}
+	if k, ok := kinds[strings.ToUpper(n[i+1:])]; ok {
+		return n[:i] + " " + strings.ToUpper(k)
+	}
+	return n
+}
+
 // sources are the agency layers, all public domain US government data. Each
 // is listed with its service so it can be checked in a browser.
 var sources = []source{
@@ -78,6 +96,24 @@ var sources = []source{
 	{Label: "Virginia conservation lands", URL: "https://www.dcr.virginia.gov/natural-heritage/document/conslands.zip", Zip: true,
 		Where: "MAAGENCY IN ('VA Dept of Conservation and Recreation', 'VA Dept of Forestry') OR MAAGENCY LIKE 'US %' OR MAAGENCY LIKE 'National %'",
 		Name:  field("LABEL", ""), State: "VA", Manager: "VA DCR", Designation: "STATE", Class: "VA Conservation Lands"},
+
+	// Maryland DNR's own land (parks, forests, wildlife and natural resources
+	// management areas) and its State Wildlands, which POTA lists as natural
+	// areas.
+	{Label: "Maryland DNR lands", URL: "https://mdgeodata.md.gov/imap/rest/services/Environment/MD_ProtectedLands/FeatureServer/0",
+		Where: "DNRType = 'DNR Owned Property'", Name: mdName, State: "MD", Manager: "MD DNR", Designation: "STATE", Class: "MD DNR Lands"},
+	{Label: "Maryland State Wildlands", URL: "https://dnr.geodata.md.gov/dnrdata/rest/services/AIMS/Wildlands_Preservation_System/MapServer/0",
+		Name: field("WNAME", "Wildland"), State: "MD", Manager: "MD DNR", Designation: "STATE", Class: "MD Wildlands"},
+
+	// Tennessee's state natural areas and state park lands (TDEC).
+	{Label: "Tennessee state natural areas", URL: "https://tdeconline.tn.gov/arcgis/rest/services/TN_Natural_Areas/FeatureServer/0",
+		Name: field("SNA_NAME", ""), Loc: field("SITE_NAME", ""), State: "TN", Manager: "TDEC", Designation: "STATE", Class: "TN Natural Areas"},
+	{Label: "Tennessee state park lands", URL: "https://tdeconline.tn.gov/arcgis/rest/services/TDEC_Public_Lands/FeatureServer/0",
+		Name: field("NAME_1", ""), Loc: field("NAME_2", ""), State: "TN", Manager: "TDEC", Designation: "STATE", Class: "TN State Park Lands"},
+
+	// West Virginia's public lands compilation (2020), state land only.
+	{Label: "West Virginia state lands", URL: "https://services1.arcgis.com/cTNi34MxOdcfum3A/ArcGIS/rest/services/WV_Master_PublicLands_042120/FeatureServer/0",
+		Where: "Mang_Type = 'STAT'", Name: field("Unit_Nm", ""), State: "WV", Manager: "WV DNR", Designation: "STATE", Class: "WV Public Lands"},
 
 	// Official routes of the national historic and scenic trails, mostly old
 	// roads and water routes that OpenStreetMap doesn't map as one trail.

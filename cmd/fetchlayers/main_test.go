@@ -17,3 +17,16 @@ func TestNames(t *testing.T) {
 		}
 	}
 }
+
+func TestMDName(t *testing.T) {
+	for in, want := range map[string]string{
+		"SASSAFRAS NRMA":     "SASSAFRAS NATURAL RESOURCES MANAGEMENT AREA",
+		"POPES CREEK WMA":    "POPES CREEK WILDLIFE MANAGEMENT AREA",
+		"BOHEMIA RIVER SP":   "BOHEMIA RIVER STATE PARK",
+		"SOMERS COVE MARINA": "SOMERS COVE MARINA",
+	} {
+		if got := mdName(attrs{"DNRName": in}); got != want {
+			t.Errorf("mdName(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

@@ -1,7 +1,7 @@
 name: build
 on:
   push:
-    paths-ignore: ['**.md', 'unraid/**', 'docker-compose.yml']
+    paths-ignore: ['**.md', 'unraid/**', 'docker-compose.yml', '.github/workflows/probe.yml', 'docs/**']
   workflow_dispatch:
   schedule:
     - cron: '0 6 2 * *' # monthly, for new parks, summits and activation zones
