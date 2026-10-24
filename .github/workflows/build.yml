@@ -113,7 +113,7 @@ jobs:
           path: osm-parks.geojsonl.gz
           key: osmparks-v1-${{ steps.month.outputs.m }}
       - name: Park outlines from OpenStreetMap
-        id: osm
+        id: osmareas
         if: steps.osmparks.outputs.cache-hit != 'true'
         continue-on-error: true
         timeout-minutes: 120
@@ -131,7 +131,7 @@ jobs:
           go run ./cmd/fetchosmparks -pota all_parks_ext.csv -areas areas.geojsonseq.gz -out osm-parks.geojsonl.gz
           rm areas.geojsonseq.gz
       - name: Save OpenStreetMap park outlines cache
-        if: steps.osmparks.outputs.cache-hit != 'true' && steps.osm.outcome == 'success'
+        if: steps.osmparks.outputs.cache-hit != 'true' && steps.osmareas.outcome == 'success'
         uses: actions/cache/save@v4
         with:
           path: osm-parks.geojsonl.gz
