@@ -115,6 +115,7 @@ Leave off `format=text` to get the same answer as JSON. The email gateway uses t
 | Park boundaries | U.S. Geological Survey (USGS) Gap Analysis Project, [Protected Areas Database of the United States (PAD-US) 4.1](https://www.usgs.gov/programs/gap-analysis-project/science/pad-us-data-overview), U.S. Geological Survey data release ([ScienceBase](https://www.sciencebase.gov/catalog/item/652d4fc5d34e44db0e2ee45e)) | Public domain |
 | More park boundaries and national trail routes | U.S. [Bureau of Land Management](https://gis.blm.gov/arcgis/rest/services), [Fish and Wildlife Service](https://services.arcgis.com/QVENGdaPbd4LUkLV/arcgis/rest/services), [Army Corps of Engineers](https://services7.arcgis.com/n1YM8pTrFmm7L4hs/arcgis/rest/services/usace_recreation_areas/FeatureServer), [Bureau of Reclamation](https://services1.arcgis.com/ixD30sld6F8MQ7V5/arcgis/rest/services/ReclamationRecreationManagementAreas/FeatureServer) and [National Park Service](https://services1.arcgis.com/fBc8EJBxQRMcHlei/arcgis/rest/services) map services; `cmd/fetchlayers/sources.go` lists each layer | Public domain |
 | Trail routes | © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, state extracts from [Geofabrik](https://download.geofabrik.de) | [ODbL](https://opendatacommons.org/licenses/odbl/); the trail areas in the image are a derived database under the same license |
+| Park outlines not in PAD-US or the agency maps | © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, state extracts from [Geofabrik](https://download.geofabrik.de) | [ODbL](https://opendatacommons.org/licenses/odbl/); those outlines in the image are a derived database under the same license |
 | Summit list | [Summits on the Air](https://www.sota.org.uk) ([summitslist.csv](https://storage.sota.org.uk/summitslist.csv)) | Published by SOTA |
 | Activation zones | [sotl.as](https://sotl.as) and its contributors, published by [OffARO/sota-az](https://github.com/OffARO/sota-az) | Activation zones © sotl.as contributors, free non-commercial use |
 | Map display | [MapLibre GL JS](https://maplibre.org) | BSD-3-Clause |
@@ -128,13 +129,17 @@ These are the choices behind what the map draws, and why.
 
 ### Boundaries are matched by name
 
-POTA doesn't publish park boundaries, so each park is matched to the USGS Protected Areas Database (PAD-US) by its name and location. Most matches are clean. A match that's only fair is still drawn, but listed as a weak match so it can be checked. A few will be wrong, and about 2,390 parks have no boundary at all (see [Parks with no boundary](#parks-with-no-boundary)).
+POTA doesn't publish park boundaries, so each park is matched to the USGS Protected Areas Database (PAD-US) by its name and location. Most matches are clean. A match that's only fair is still drawn, but listed as a weak match so it can be checked. A few will be wrong, and about 1,950 parks have no boundary at all (see [Parks with no boundary](#parks-with-no-boundary)).
 
 A POTA pin sometimes sits a little outside its park, at a parking lot or moved to keep the POTA map readable, so a pin within 100 m of a well-named outline counts as inside it.
 
 ### Agency maps fill the gaps in PAD-US
 
 PAD-US has no outline of its own for many BLM recreation and herd management areas, Army Corps and Reclamation recreation areas, and some refuges. For those, the map uses the agencies' own maps, matched the same way. They're only used where PAD-US has nothing that fits well, so a park PAD-US already draws keeps that outline, and they need a good name match: a campground's pin sitting inside a big BLM recreation area of another name doesn't take that area.
+
+### OpenStreetMap fills in the rest
+
+Many parks still have no agency outline: a piece of a bigger unit (Great Falls Park inside the George Washington Memorial Parkway), a city or county park, or a park too new for PAD-US. For those, the map uses a park area in OpenStreetMap with the same name around the pin. An OpenStreetMap area is only used where nothing official fits well, and it must be the same sort of place as the park, so Willamette State Fish Hatchery doesn't take Willamette National Forest and Lincoln Tomb doesn't take Lincoln Park. A trail park keeps its route unless an area has the trail's own name.
 
 ### Owned land wins over the authorized boundary
 
@@ -154,7 +159,7 @@ N-fer areas are the exact overlaps of the boundaries. Two parks that only share 
 
 ### Parks with no boundary
 
-[docs/parks-missing-boundaries.xlsx](docs/parks-missing-boundaries.xlsx) is a snapshot of the parks the map can't draw yet, from the build of 23 October 2026. Most of them are BLM recreation sites (campgrounds, trailheads, boat ramps) that no agency maps as an area, and state wildlife areas, which need each state's own maps. The sheet has these tabs:
+[docs/parks-missing-boundaries.xlsx](docs/parks-missing-boundaries.xlsx) is a snapshot of the parks the map can't draw yet, from the build of 24 October 2026. Most of them are BLM recreation sites (campgrounds, trailheads, boat ramps) that no agency maps as an area, and state wildlife areas, which need each state's own maps. The sheet has these tabs:
 
 - **Summary:** counts by kind of park and by state.
 - **No boundary:** every undrawn park with links to its POTA page and a map.
@@ -170,10 +175,11 @@ The `build` workflow on GitHub does it all:
 1. Reads PAD-US from the `padus-4.1` release (the USGS download sits behind a captcha, so the file was uploaded there by hand). If that file is missing it pages the USGS web service instead, which takes about half an hour.
 2. Downloads the OpenStreetMap extract from Geofabrik for each state with a trail park, and cuts it down with osmium to trail routes and named paths. `cmd/fetchtrails` matches each trail park to the route of the same name nearest its POTA location, and `scripts/buffer_trails.py` widens each route to 100 ft either side. The trail routes are cached for the month.
 3. `cmd/fetchlayers` downloads the federal agency maps listed in `cmd/fetchlayers/sources.go` (BLM, Fish and Wildlife Service, Army Corps, Reclamation and National Park Service) from their public map services, and the official routes of the national historic trails. `cmd/fetchtrails -official` uses those routes over OpenStreetMap's. Cached for the month.
-4. `cmd/builddata` matches every active US POTA park to PAD-US and the agency maps, applies the trail areas, and writes `us-parks.geojson.gz`. It also writes `report.csv`, which is pushed to the `reports` branch.
-5. `cmd/buildsota` joins the SOTA summits list with the sotl.as activation zones for the US associations and writes `sota.geojson.gz`.
-6. `cmd/parkmap -write-regions` works out the n-fer overlap areas and saves them, so the server doesn't have to at startup. `cmd/parkmap -selftest` then loads everything and prints sample lookups as a check.
-7. The Docker image is built with the data inside and pushed to `ghcr.io/jsttylr/park-map`.
+4. Downloads each state's OpenStreetMap extract again and cuts it down with osmium to named park and protected areas. `cmd/fetchosmparks` matches each park to the area of the same name and sort around its POTA location. Cached for the month.
+5. `cmd/builddata` matches every active US POTA park to PAD-US and the agency maps, uses the OpenStreetMap areas where those have nothing that fits, applies the trail areas, and writes `us-parks.geojson.gz`. It also writes `report.csv`, which is pushed to the `reports` branch.
+6. `cmd/buildsota` joins the SOTA summits list with the sotl.as activation zones for the US associations and writes `sota.geojson.gz`.
+7. `cmd/parkmap -write-regions` works out the n-fer overlap areas and saves them, so the server doesn't have to at startup. `cmd/parkmap -selftest` then loads everything and prints sample lookups as a check.
+8. The Docker image is built with the data inside and pushed to `ghcr.io/jsttylr/park-map`.
 
 ## Disclaimer
 
