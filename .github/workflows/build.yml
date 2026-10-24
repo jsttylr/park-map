@@ -102,6 +102,40 @@ jobs:
         with:
           path: trails.geojsonl.gz
           key: trails-v4-${{ steps.month.outputs.m }}
+      # Park outlines from OpenStreetMap, for the parks no agency maps as its
+      # own area: pieces of bigger units, city and county parks, and parks too
+      # new for PAD-US. Each state's extract is cut down to named park areas
+      # and exported as polygons. Cached for the month.
+      - name: Cached OpenStreetMap park outlines
+        id: osmparks
+        uses: actions/cache/restore@v4
+        with:
+          path: osm-parks.geojsonl.gz
+          key: osmparks-v1-${{ steps.month.outputs.m }}
+      - name: Park outlines from OpenStreetMap
+        id: osm
+        if: steps.osmparks.outputs.cache-hit != 'true'
+        continue-on-error: true
+        timeout-minutes: 120
+        run: |
+          sudo apt-get install -y -qq osmium-tool > /dev/null
+          : > areas.geojsonseq.gz
+          for s in $(go run ./cmd/fetchosmparks -pota all_parks_ext.csv -states); do
+            curl -fsSL --retry 3 -o state.osm.pbf "https://download.geofabrik.de/north-america/us/$s-latest.osm.pbf"
+            osmium tags-filter --overwrite -o areas.osm.pbf state.osm.pbf wr/leisure=park,nature_reserve,recreation_ground,garden wr/boundary=protected_area,national_park wr/landuse=recreation_ground
+            rm state.osm.pbf
+            osmium export areas.osm.pbf -f geojsonseq --geometry-types=polygon --add-unique-id=type_id | gzip >> areas.geojsonseq.gz
+            rm areas.osm.pbf
+          done
+          ls -la areas.geojsonseq.gz
+          go run ./cmd/fetchosmparks -pota all_parks_ext.csv -areas areas.geojsonseq.gz -out osm-parks.geojsonl.gz
+          rm areas.geojsonseq.gz
+      - name: Save OpenStreetMap park outlines cache
+        if: steps.osmparks.outputs.cache-hit != 'true' && steps.osm.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: osm-parks.geojsonl.gz
+          key: osmparks-v1-${{ steps.month.outputs.m }}
       # Agency maps that fill in parks PAD-US doesn't draw (BLM, FWS, Army
       # Corps, Reclamation, NPS) and the official national historic trail
       # routes. Cached for the month; a service that's down only leaves its
@@ -140,7 +174,8 @@ jobs:
         run: |
           T=""; if [ -s trail-areas.geojsonl.gz ]; then T="-trails trail-areas.geojsonl.gz"; fi
           A=""; if [ -s agency-areas.geojsonl.gz ]; then A="agency-areas.geojsonl.gz"; fi
-          mkdir -p data && go run ./cmd/builddata -pota all_parks_ext.csv -out data/us-parks.geojson.gz -report report.csv $T -show US-10139,US-4526,US-0171,US-5730,US-5751,US-0573 padus.geojsonl.gz $A
+          O=""; if [ -s osm-parks.geojsonl.gz ]; then O="-osm osm-parks.geojsonl.gz"; fi
+          mkdir -p data && go run ./cmd/builddata -pota all_parks_ext.csv -out data/us-parks.geojson.gz -report report.csv $T $O -show US-10139,US-4526,US-0171,US-5730,US-5751,US-0573 padus.geojsonl.gz $A
       - name: Download SOTA summits and sotl.as activation zones
         env:
           GH_TOKEN: ${{ github.token }}
