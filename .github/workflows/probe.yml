@@ -32,10 +32,5 @@ jobs:
               d = get("https://www.arcgis.com/sharing/rest/search", q=q, num=25, f="json")
               print("## search", q)
               for r in d.get("results", []): print("   ", r["title"], "|", r["owner"], "|", r.get("url"))
-          il = "https://services.arcgis.com/b9DHj1BjfdLLFv11/arcgis/rest/services/"
-          for u in [il + "IDNR_Site_Boundaries_10_7_25/FeatureServer", il + "IDNR_Site_Boundaries_10_7_25/FeatureServer/0", il + "IllinoisFacilityBoundary/FeatureServer", il + "IllinoisFacilityBoundary/FeatureServer/0", il + "IDNRSiteBoundary/FeatureServer/0",
-                    "https://services1.arcgis.com/k8yxvICm95iIFicb/arcgis/rest/services/State_Game_Lands_Boundaries/FeatureServer/300",
-                    "https://gis.dnr.mo.gov/server/rest/services/parks/Missouri_State_Parks_Boundaries/FeatureServer/2", "https://gis.dnr.mo.gov/server/rest/services/parks/Missouri_State_Parks_Boundaries/FeatureServer/3"]:
-              info(u); sample(u, n=6)
-          for q in ['owner:StateOfAlabama', 'Alabama state parks boundary', 'Mississippi state parks boundary', 'Mississippi state fishing lakes']:
-              search(q)
+          ind = "https://gisdata.in.gov/server/rest/services/Hosted/ManagedLands_DNR_Open/FeatureServer/0"
+          sample(ind, "unitname IN ('Monroe Lake', 'Salamonie Lake', 'Patoka Lake', 'Mississinewa Lake', 'Brookville Lake', 'Cagles Mill Lake', 'Cecil M. Harden Lake') OR subunit LIKE '%SRA%' OR subunit LIKE '%Recreation Area%' OR unitname LIKE '%Recreation Area%'", 200, "unitname,subunit,acres,manager")
