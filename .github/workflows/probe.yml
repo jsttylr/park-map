@@ -16,12 +16,7 @@ jobs:
             curl -sS -A "Mozilla/5.0" --max-time 60 "$u/query?where=$w&returnCountOnly=true&f=json"; echo
             curl -sS -A "Mozilla/5.0" --max-time 60 "$u/query?where=$w&outFields=*&returnGeometry=false&resultRecordCount=12&f=json" | python3 -c "import json,sys; d=json.load(sys.stdin); [print(' ',{k:v for k,v in f['attributes'].items() if v not in (None,'',' ') and not k.lower().startswith('shape')}) for f in d.get('features',[])]" || true
           }
-          show https://services1.arcgis.com/YfqBAUM5nWR3yhGP/ArcGIS/rest/services/gamelands_general/FeatureServer
-          show https://services1.arcgis.com/YfqBAUM5nWR3yhGP/ArcGIS/rest/services/gamelands_general/FeatureServer/0
-          show "https://services1.arcgis.com/YfqBAUM5nWR3yhGP/ArcGIS/rest/services/NCWRC_Owned_Lands_(Public_View)/FeatureServer/0"
-          show https://mdgeodata.md.gov/imap/rest/services/Environment/MD_ProtectedLands/FeatureServer/0 "DNRName+LIKE+%27%25NA%27+OR+DNRName+LIKE+%27%25WMA%27+OR+DNRName+LIKE+%27%25Natural%25%27"
-          show https://dnr.geodata.md.gov/dnrdata/rest/services/AIMS/Wildlands_Preservation_System/MapServer/0
-          show https://services1.arcgis.com/cTNi34MxOdcfum3A/ArcGIS/rest/services/WV_DNR_Lands_and_Streams_v8_WFL1/FeatureServer
-          show https://services1.arcgis.com/cTNi34MxOdcfum3A/ArcGIS/rest/services/WV_Master_PublicLands_042120/FeatureServer/0 "Unit_Nm+LIKE+%27%25Hatchery%25%27+OR+Unit_Nm+LIKE+%27%25Slatyfork%25%27+OR+Unit_Nm+LIKE+%27%25Lohr%25%27"
-          show https://tdeconline.tn.gov/arcgis/rest/services/TN_Natural_Areas/FeatureServer/0
-          show https://tdeconline.tn.gov/arcgis/rest/services/TDEC_Public_Lands/FeatureServer/0
+          show https://services1.arcgis.com/YfqBAUM5nWR3yhGP/ArcGIS/rest/services/gamelands_general/FeatureServer/21
+          show https://kygisserver.ky.gov/arcgis/rest/services/WGS84WM_Services/Ky_Elk_Hunting_WGS84WM/MapServer
+          show https://kygisserver.ky.gov/arcgis/rest/services/WGS84WM_Services/Ky_Elk_Hunting_WGS84WM/MapServer/4
+          curl -sS "https://kygisserver.ky.gov/arcgis/rest/services/WGS84WM_Services?f=json" | python3 -c "import json,sys; [print(' svc',s['name']) for s in json.load(sys.stdin)['services']]"
