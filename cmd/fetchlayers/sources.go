@@ -82,6 +82,16 @@ func wdfwName(a attrs) string {
 	return n
 }
 
+// nvName names a Nevada WMA in full, whether NDOW wrote "Fernley WMA" or
+// just "Carson Lake Pasture".
+func nvName(a attrs) string {
+	n := spelled("WMA_NAME", map[string]string{"WMA": wma})(a)
+	if n == "" || strings.HasSuffix(n, wma) {
+		return n
+	}
+	return n + " " + wma
+}
+
 // ilName adds the kind of land to an Illinois DNR site's name ("Devil's
 // Island" is a state fish and wildlife area).
 func ilName(a attrs) string {
@@ -395,7 +405,7 @@ var sources = []source{
 
 	// Nevada Department of Wildlife WMAs.
 	{Label: "Nevada wildlife management areas", URL: "https://services.arcgis.com/RyxlXSfFi87rAosq/arcgis/rest/services/NDOWWMAs/FeatureServer/0",
-		Name: field("WMA_NAME", wma), State: "NV", Manager: "NDOW", Designation: "STATE", Class: "NV WMAs"},
+		Name: nvName, State: "NV", Manager: "NDOW", Designation: "STATE", Class: "NV WMAs"},
 
 	// Hawaii DLNR reserves (forest reserves, sanctuaries, natural area
 	// reserves, state parks) and State Parks boundaries.

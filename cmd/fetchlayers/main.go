@@ -96,6 +96,29 @@ var client = &http.Client{Timeout: 5 * time.Minute}
 // userAgent is a browser's, since some services (Tennessee's) refuse Go's.
 const userAgent = "Mozilla/5.0"
 
+// fetchOne writes one source's features to the areas or lines file and
+// logs how it went. One agency's service being down shouldn't stop the
+// build; those parks just stay as they were.
+func fetchOne(s source, areas, lines io.Writer) (int, error) {
+	start := time.Now()
+	w, batch, simplify := areas, 100, 0.0001
+	if s.Lines {
+		w, batch, simplify = lines, 50, 0.00005
+	}
+	var n int
+	var err error
+	if s.Zip {
+		n, err = fetchZip(s, w)
+	} else {
+		n, err = fetch(s, w, batch, simplify)
+	}
+	if err != nil {
+		log.Printf("%s: %v (kept %d features)", s.Label, err, n)
+	}
+	log.Printf("%-45s %6d features in %v", s.Label, n, time.Since(start).Round(time.Second))
+	return n, err
+}
+
 // get runs one request, waiting and retrying while the service is busy.
 func get(u string, v url.Values) ([]byte, error) {
 	var last error
@@ -325,30 +348,32 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	failed := 0
+	var todo []source
 	for _, s := range sources {
-		if *only != "" && !strings.Contains(s.Label, *only) || *stateMaps != (len(s.State) == 2) {
-			continue
+		if *only == "" || strings.Contains(s.Label, *only) {
+			if *stateMaps == (len(s.State) == 2) {
+				todo = append(todo, s)
+			}
 		}
-		start := time.Now()
-		w, batch, simplify := aw, 100, 0.0001
-		if s.Lines {
-			w, batch, simplify = lw, 50, 0.00005
-		}
-		var n int
-		if s.Zip {
-			n, err = fetchZip(s, w)
-		} else {
-			n, err = fetch(s, w, batch, simplify)
-		}
-		if err != nil {
-			// One agency's service being down shouldn't stop the build;
-			// those parks just stay as they were.
-			log.Printf("%s: %v (kept %d features)", s.Label, err, n)
-			failed++
-		}
-		log.Printf("%-45s %6d features in %v", s.Label, n, time.Since(start).Round(time.Second))
 	}
+	failed := 0
+	for pass := 0; pass < 2 && len(todo) > 0; pass++ {
+		if pass > 0 {
+			// A server that couldn't be reached at all (Wisconsin's, now
+			// and then) gets one more try once the others are done.
+			log.Printf("trying %d unreached sources again", len(todo))
+		}
+		var unreached []source
+		for _, s := range todo {
+			if n, err := fetchOne(s, aw, lw); err != nil && n == 0 {
+				unreached = append(unreached, s)
+			} else if err != nil {
+				failed++ // partly written, so not tried again
+			}
+		}
+		todo = unreached
+	}
+	failed += len(todo)
 	for _, c := range []struct {
 		f  *os.File
 		gz *gzip.Writer

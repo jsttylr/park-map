@@ -45,6 +45,8 @@ func TestStateNames(t *testing.T) {
 		{okName(attrs{"WMANAME": "Sans Bois Wildlife Management Area", "WMATYPE": "WMA"}), "Sans Bois Wildlife Management Area"},
 		{wdfwName(attrs{"ManagedPlaceName": "Asotin Creek", "PlaceTypeName": "Wildlife Area"}), "Asotin Creek Wildlife Area"},
 		{wdfwName(attrs{"ManagedPlaceName": "Jameson Lake", "PlaceTypeName": "Water Access Site"}), "Jameson Lake"},
+		{nvName(attrs{"WMA_NAME": "Fernley WMA"}), "Fernley Wildlife Management Area"},
+		{nvName(attrs{"WMA_NAME": "Carson Lake Pasture"}), "Carson Lake Pasture Wildlife Management Area"},
 	} {
 		if c.got != c.want {
 			t.Errorf("got %q, want %q", c.got, c.want)
