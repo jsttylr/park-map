@@ -51,22 +51,7 @@ jobs:
               for r in d.get("results", []):
                   if "PADUS" in r["title"] or "PAD-US" in r["title"] or "Amrivers" in r["owner"]: continue
                   print("   ", r["title"], "|", r["owner"], "|", r.get("url"))
-          nh = "https://nhgeodata.unh.edu/hosting/rest/services/Hosted/EC_Conservation/FeatureServer/0"
-          group(nh, "ppagentype"); group(nh, "pptype"); group(nh, "ownertype")
-          names(nh, "name", "name LIKE '%Annett%' OR name LIKE '%Ashenden%' OR name LIKE '%Davis-White%' OR name LIKE '%Lovewell%' OR name LIKE '%Max Israel%' OR name LIKE '%Merrimack River%' OR name LIKE '%Merriman%' OR name LIKE '%Mount Major%' OR name LIKE '%Nash Stream%' OR name LIKE '%White Farm%' OR name LIKE '%Eisenhower%' OR name LIKE '%Gardner Memorial%' OR name LIKE '%Taylor%Mill%' OR name LIKE '%Walski%'")
-          sample(nh, "name LIKE '%Annett%' OR name LIKE '%Nash Stream%'", n=4, fields="name,p_name,ppagency,ppagentype,pptype,ownertype")
-          names(nh, "name", "ppagentype=3 AND pptype='FO' AND name LIKE '%A%'")
-          me = "https://gis.maine.gov/mapservices/rest/services/dep/Maine_DEP_Outstanding_National_Resource_Waters/MapServer/5"
-          info(me); group(me, "HOLD1_TYPE"); group(me, "HOLD1_NAME"); group(me, "DESIGNATION")
-          names(me, "PROJECT", "PROJECT LIKE '%Fort Point%' OR PROJECT LIKE '%Ossip%' OR PROJECT LIKE '%Holeb%' OR PROJECT LIKE '%Chamberlain%' OR PROJECT LIKE '%Carlton%'")
-          ut = "https://gis.trustlands.utah.gov/mapping/rest/services/Land_Ownership/FeatureServer/0"
-          names(ut, "label_state", "label_state LIKE '%Hatchery%' OR label_state LIKE '%Kamas%' OR label_state LIKE '%Willard%' OR label_state LIKE '%Desert Lake%' OR label_state LIKE '%Locomotive%' OR label_state LIKE '%Public Shooting%' OR label_state LIKE '%Richmond%' OR label_state LIKE '%Goslin%' OR label_state LIKE '%Causey%' OR label_state LIKE '%Millsite%' OR label_state LIKE '%Monte Cristo%' OR label_state LIKE '%Wedge%'")
-          group(ut, "admin", "label_state LIKE '%Hatchery%'")
-          ul = "https://services.arcgis.com/ZzrwjTRez6FJiOq4/arcgis/rest/services/ULTRA_Properties_2_view/FeatureServer"
-          lays(ul)
-          idw = "https://services.arcgis.com/FjJI5xHF2dUPVrgK/arcgis/rest/services/WildlifeManagementAreas/FeatureServer/0"
-          names(idw, "Name", "1=1")
-          mt = "https://fwp-gis.mt.gov/arcgis/rest/services/fwplnd/fwpLands/MapServer/2"
-          names(mt, "NAME", "NAME LIKE '%Big Horn%' OR NAME LIKE '%Bonfield%' OR NAME LIKE '%Grey Cliff%' OR NAME LIKE '%Harper%' OR NAME LIKE '%Island Lake%' OR NAME LIKE '%Prewitt%' OR NAME LIKE '%Thoreau%'")
-          nd = "https://services1.arcgis.com/GOcSXpzwBHyk2nog/ArcGIS/rest/services/NDGISHUB_Wildlife_Management_Areas/FeatureServer/0"
-          names(nd, "Unit_Name", "Unit_Name LIKE '%Lone%' OR Unit_Name LIKE '%Maclean%' OR Unit_Name LIKE '%Raab%'")
+          info("https://dnrmaps.wi.gov/arcgis/rest/services/LF_DML/LF_AGOL_STAGING_WTM_Ext/MapServer/0")
+          info("https://dnrmaps.wi.gov/arcgis/rest/services")
+          for q in ["Wisconsin DNR managed lands", "DNR Managed Lands Wisconsin", "Wisconsin state natural areas", "Wisconsin wildlife areas DNR", "Wisconsin DNR lands open data", "Wisconsin state parks forests boundaries"]:
+              osearch(q)
