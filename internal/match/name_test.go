@@ -138,6 +138,7 @@ func TestRouteFits(t *testing.T) {
 		{"Logan Canyon National Scenic Byway National Parkway", "Logan Canyon Scenic Byway", true},
 		{"Great Basin Highway Scenic Byway Scenic Site", "Great Basin National Heritage Area", false},
 		{"Camden Expedition Scenic Highway State Trail", "Camden Expedition Scenic Highway", true},
+		{"Owyhee Uplands Back Country Byway National Parkway", "Owyhee Uplands Backcountry Byway", true},
 		{"Kings River National Wild and Scenic River", "Kings River", false},
 		{"Kings River National Wild and Scenic River", "Kings, California Wild and Scenic River", true},
 		{"Bad Branch National Wild and Scenic River", "Bad Branch Wild River", true},

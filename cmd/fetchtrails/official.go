@@ -17,7 +17,7 @@ import (
 const (
 	officialScore = 0.9
 	officialKm    = 300
-	alongScore    = 0.7 // for a byway or river
+	alongScore    = 0.65 // for a byway or river
 	alongKm       = 25
 	joinKm        = 2 // pieces of one route this close are joined
 )
