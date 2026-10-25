@@ -291,6 +291,38 @@ var sources = []source{
 	{Label: "New Jersey state open space", URL: "https://services1.arcgis.com/QWdNfRs7lkPq4g4Q/arcgis/rest/services/Open_Space__State_Owned__Generalized_h/FeatureServer/67",
 		Name: field("FEATURE_NAME", ""), State: "NJ", Manager: "NJDEP", Designation: "STATE", Class: "NJ State Open Space"},
 
+	// The fourth ring. Colorado Parks and Wildlife properties open to the
+	// public (state parks, wildlife areas, fish units, watchable wildlife
+	// areas).
+	{Label: "Colorado Parks and Wildlife properties", URL: "https://services5.arcgis.com/ttNGmDvKQA7oeDQ3/arcgis/rest/services/CPWAdminData/FeatureServer/5",
+		Where: "PropType IN ('SWA', 'SP', 'SFU', 'WWA', 'SAA', 'Recreation Area')", Name: spelled("PropName", map[string]string{
+			"SWA": "State Wildlife Area", "SP": "State Park", "SFU": "State Fish Unit", "WWA": "Watchable Wildlife Area", "SAA": "State Access Area",
+		}), State: "CO", Manager: "CPW", Designation: "STATE", Class: "CO CPW Properties"},
+
+	// Wyoming Game and Fish habitat management areas and public access areas.
+	{Label: "Wyoming habitat management areas", URL: "https://services6.arcgis.com/cWzdqIyxbijuhPLw/arcgis/rest/services/WildlifeHabitatManagementAreaBoundaries/FeatureServer/0",
+		Name: field("WHMA_Name", "Wildlife Habitat Management Area"), State: "WY", Manager: "WGFD", Designation: "STATE", Class: "WY WHMAs"},
+	{Label: "Wyoming public access areas", URL: "https://services6.arcgis.com/cWzdqIyxbijuhPLw/arcgis/rest/services/PublicAccessAreaBoundaries/FeatureServer/0",
+		Name: field("PAA_Name", "Public Access Area"), State: "WY", Manager: "WGFD", Designation: "STATE", Class: "WY Public Access Areas"},
+
+	// Minnesota DNR wildlife management areas open to the public.
+	{Label: "Minnesota wildlife management areas", URL: "https://enterprise.gisdata.mn.gov/aghost/rest/services/us_mn_state_dnr/bdry_dnr_wildlife_mgmt_areas_pub/FeatureServer/0",
+		Name: field("name", ""), State: "MN", Manager: "MN DNR", Designation: "STATE", Class: "MN WMAs"},
+
+	// Massachusetts: state-owned land on MassGIS's open space map (DCR
+	// parks and forests, MassWildlife WMAs).
+	{Label: "Massachusetts state open space", URL: "https://arcgisserver.digital.mass.gov/arcgisserver/rest/services/AGOL/openspace/FeatureServer/0",
+		Where: "OWNER_TYPE = 'S'", Name: field("SITE_NAME", ""), State: "MA", Manager: "MA EEA", Designation: "STATE", Class: "MA State Open Space"},
+
+	// Vermont Agency of Natural Resources land units (state parks, forests,
+	// wildlife management areas).
+	{Label: "Vermont ANR lands", URL: "https://anrmaps.vermont.gov/arcgis/rest/services/Open_Data/OPENDATA_ANR_CADASTRAL_SP_NOCACHE_v2/MapServer/38",
+		Name: field("NAME", ""), State: "VT", Manager: "VT ANR", Designation: "STATE", Class: "VT ANR Lands"},
+
+	// Connecticut DEEP property (parks, forests, wildlife areas).
+	{Label: "Connecticut DEEP property", URL: "https://services1.arcgis.com/FjPcSmEFuDYlIdKC/arcgis/rest/services/Connecticut_DEEP_Property/FeatureServer/0",
+		Name: field("PROPERTY", ""), State: "CT", Manager: "CT DEEP", Designation: "STATE", Class: "CT DEEP Property"},
+
 	// Official routes of the national historic and scenic trails, mostly old
 	// roads and water routes that OpenStreetMap doesn't map as one trail.
 	{Label: "NPS Captain John Smith Chesapeake NHT", URL: nps + "CAJO_Captain_John_Smith_Chesapeake_NHT_Centerline_ln/FeatureServer/0",
