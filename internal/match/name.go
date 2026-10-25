@@ -296,6 +296,63 @@ func IsTrail(name string) bool {
 	return false
 }
 
+// IsByway reports whether a name is a scenic byway's ("Logan Canyon National
+// Scenic Byway", "Camden Expedition Scenic Highway"). Like a trail, a byway
+// is activated along its road.
+func IsByway(name string) bool {
+	t := Tokens(name)
+	for i, w := range t {
+		if w == "byway" || w == "byways" || w == "highway" && i > 0 && t[i-1] == "scenic" {
+			return true
+		}
+	}
+	return false
+}
+
+// IsWildRiver reports whether a name is a wild and scenic river's, which is
+// activated along the river like a trail.
+func IsWildRiver(name string) bool {
+	t := Tokens(name)
+	for i := 0; i+3 < len(t); i++ {
+		if t[i] == "wild" && t[i+1] == "and" && t[i+2] == "scenic" && (t[i+3] == "river" || t[i+3] == "rivers") {
+			return true
+		}
+	}
+	return false
+}
+
+// IsRoute reports whether a park is a trail, byway or wild and scenic river:
+// a route activated along its length rather than an area.
+func IsRoute(name string) bool { return IsTrail(name) || IsByway(name) || IsWildRiver(name) }
+
+// RouteFits reports whether an outline could be a park by the kind of route
+// each is. A route park only takes an outline of its own kind (a trail's, a
+// byway's, a river corridor's), not the forest or reservation it runs
+// through; any other park takes anything.
+func RouteFits(park, area string) bool {
+	if !IsRoute(park) {
+		return true
+	}
+	return IsTrail(park) && IsTrail(area) || IsByway(park) && IsByway(area) || IsWildRiver(park) && isRiverCorridor(area)
+}
+
+// isRiverCorridor reports whether a name is a protected river's ("Bad Branch
+// Wild River", "Saint Croix National Scenic Riverway", "Buffalo National
+// River") rather than land along it ("Merced River ACEC").
+func isRiverCorridor(name string) bool {
+	t := Tokens(name)
+	for i, w := range t {
+		if w == "river" || w == "rivers" || w == "riverway" || w == "riverways" {
+			for _, b := range t[:i] {
+				if b == "wild" || b == "scenic" || b == "national" {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 // EndsInTrail reports whether a name's last word is "Trail" or "Trails"
 // ("Katy Trail", "Ice Age National Scenic Trail"), so the park is the trail
 // itself rather than land named after one ("Scioto Trail State Forest").

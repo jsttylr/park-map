@@ -127,3 +127,28 @@ func TestEndsInTrail(t *testing.T) {
 		}
 	}
 }
+
+func TestRouteFits(t *testing.T) {
+	for _, c := range []struct {
+		park, area string
+		want       bool
+	}{
+		{"Katy Trail State Park", "Katy Trail", true},
+		{"Appalachian National Scenic Trail", "Cherokee National Forest", false},
+		{"Logan Canyon National Scenic Byway National Parkway", "Logan Canyon Scenic Byway", true},
+		{"Great Basin Highway Scenic Byway Scenic Site", "Great Basin National Heritage Area", false},
+		{"Camden Expedition Scenic Highway State Trail", "Camden Expedition Scenic Highway", true},
+		{"Kings River National Wild and Scenic River", "Kings River", false},
+		{"Kings River National Wild and Scenic River", "Kings, California Wild and Scenic River", true},
+		{"Bad Branch National Wild and Scenic River", "Bad Branch Wild River", true},
+		{"Saint Croix National Wild and Scenic River", "Saint Croix National Scenic Riverway", true},
+		{"Buffalo National Wild and Scenic River", "Buffalo National River", true},
+		{"Merced National Wild and Scenic River", "Merced River ACEC", false},
+		{"Hennepin Canal Parkway State Park", "Hennepin Canal", true},
+		{"Blue Ridge National Parkway", "Blue Ridge Parkway", true},
+	} {
+		if got := RouteFits(c.park, c.area); got != c.want {
+			t.Errorf("RouteFits(%q, %q) = %v, want %v", c.park, c.area, got, c.want)
+		}
+	}
+}

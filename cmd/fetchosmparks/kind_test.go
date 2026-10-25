@@ -20,6 +20,10 @@ func TestSameKind(t *testing.T) {
 		{"Olympic State Wildlife Area", "Olympic Wildlife Area", true},
 		{"Mt Hope on Salamonie Lake State Recreation Area", "Mount Hope State Recreation Area", true},
 		{"Elkhorn Crossing State Park", "Elkhorn Crossing", true},
+		{"Atlanta Airstrip State Recreation Area", "Atlanta Airstrip", true},
+		{"Atlanta Airstrip State Recreation Area", "Atlanta City Park", false},
+		{"Sand Island BLM Recreation Management Area", "Sand Island Recreation Area", true},
+		{"Meade State Fishing Lake", "Meade State Lake", true},
 	} {
 		if got := sameKind(c.park, c.area); got != c.want {
 			t.Errorf("sameKind(%q, %q) = %v (%q, %q), want %v", c.park, c.area, got, kind(c.park), kind(c.area), c.want)

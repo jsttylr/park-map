@@ -16,6 +16,8 @@ var kinds = []struct {
 	{"river", []string{"wild and scenic river"}},
 	{"wilderness", []string{"wilderness"}},
 	{"refuge", []string{"wildlife refuge"}},
+	{"airstrip", []string{"airstrip", "airport", "airfield"}},
+	{"park", []string{"recreation management area"}}, // BLM's, not a wildlife area
 	{"wildlife", []string{"wildlife management area", "wildlife area", "game land", "game lands", "fishing lake", "fish and wildlife area", "management area", "wildlife"}},
 	{"forest", []string{"forest"}},
 	{"trail", []string{"trail", "trails"}},

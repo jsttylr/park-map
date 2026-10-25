@@ -58,17 +58,18 @@ type cand struct {
 	km     float64 // how far the nearest piece is from the pin
 	geom   orb.MultiPolygon
 	ids    []string
+	water  bool // a lake or pond, for a fishing lake
 }
 
 // add keeps one piece of an area under its name.
-func (p *park) add(name, id string, mp orb.MultiPolygon, score float64, inside bool, km float64) {
+func (p *park) add(name, id string, mp orb.MultiPolygon, score float64, inside bool, km float64, water bool) {
 	k := match.Key(name)
 	c := p.cands[k]
 	if c == nil {
 		if p.cands == nil {
 			p.cands = map[string]*cand{}
 		}
-		c = &cand{name: name, score: score, km: km}
+		c = &cand{name: name, score: score, km: km, water: water}
 		p.cands[k] = c
 	}
 	c.inside = c.inside || inside
@@ -138,7 +139,7 @@ func main() {
 	}
 	total, kept := 0, 0
 	for _, f := range files {
-		err := eachFeature(f, func(name, id string, mp orb.MultiPolygon) {
+		err := eachFeature(f, func(name, id string, mp orb.MultiPolygon, water bool) {
 			total++
 			seen := map[*park]bool{}
 			b := mp.Bound()
@@ -151,10 +152,11 @@ func main() {
 					if !b.Pad(gatherKm/kmPerDeg).Contains(p.Pt) || !match.SharesName(p.Name, name) || match.Conflicts(p.Name, name) || !sameKind(p.Name, name) {
 						continue
 					}
-					// A trail park keeps its route unless an area has
-					// the trail's own name.
+					// A trail, byway or river park keeps its route unless
+					// an area has its own name, and only a fishing lake
+					// takes the outline of its lake.
 					score := match.Similarity(p.Name, name)
-					if score < minScore || match.IsTrail(p.Name) && score < trailMin {
+					if score < minScore || match.IsRoute(p.Name) && score < trailMin || water && !fishingLake(p.Name) {
 						continue
 					}
 					// Pieces of the same area are gathered from farther out
@@ -166,7 +168,7 @@ func main() {
 					if !inside && p.cands[match.Key(name)] == nil && km > nearKm {
 						continue
 					}
-					p.add(name, id, mp, score, inside, km)
+					p.add(name, id, mp, score, inside, km, water)
 					kept++
 				}
 			}
@@ -216,6 +218,9 @@ func write(path string, parks []*park) error {
 		ft.Properties["score"] = c.score
 		ft.Properties["contains"] = c.inside
 		ft.Properties["km"] = math.Round(c.km*100) / 100
+		if c.water {
+			ft.Properties["water"] = true
+		}
 		b, err := json.Marshal(ft)
 		if err != nil {
 			return err
@@ -230,8 +235,9 @@ func write(path string, parks []*park) error {
 }
 
 // eachFeature streams osmium's GeoJSON output, passing each named polygon
-// with its OpenStreetMap id.
-func eachFeature(path string, fn func(name, id string, mp orb.MultiPolygon)) error {
+// with its OpenStreetMap id and whether it is water. An airfield's name
+// says "Airstrip" for "Airport", as POTA's backcountry airstrips do.
+func eachFeature(path string, fn func(name, id string, mp orb.MultiPolygon, water bool)) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return err
@@ -264,6 +270,10 @@ func eachFeature(path string, fn func(name, id string, mp orb.MultiPolygon)) err
 		if name == "" {
 			continue
 		}
+		if a, _ := ft.Properties["aeroway"].(string); a == "aerodrome" || a == "airstrip" {
+			name = airstrip.Replace(name)
+		}
+		water := ft.Properties["natural"] == "water"
 		id := "?"
 		switch v := ft.ID.(type) {
 		case string:
@@ -273,12 +283,21 @@ func eachFeature(path string, fn func(name, id string, mp orb.MultiPolygon)) err
 		}
 		switch g := ft.Geometry.(type) {
 		case orb.Polygon:
-			fn(name, id, orb.MultiPolygon{g})
+			fn(name, id, orb.MultiPolygon{g}, water)
 		case orb.MultiPolygon:
-			fn(name, id, g)
+			fn(name, id, g, water)
 		}
 	}
 	return sc.Err()
+}
+
+var airstrip = strings.NewReplacer("Airport", "Airstrip", "Airfield", "Airstrip", "Air Strip", "Airstrip", "Landing Strip", "Airstrip", "Landing Field", "Airstrip")
+
+// fishingLake reports whether a park is a fishing lake ("Meade State
+// Fishing Lake"), the water itself.
+func fishingLake(name string) bool {
+	t := match.Tokens(name)
+	return hasPhrase(t, []string{"fishing", "lake"}) || hasPhrase(t, []string{"fishing", "pond"})
 }
 
 func readPOTA(path, prefix string) ([]*park, error) {

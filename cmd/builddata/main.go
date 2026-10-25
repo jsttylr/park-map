@@ -619,7 +619,10 @@ func score(f *geojson.Feature, layer string, mp orb.MultiPolygon, p *park) *cand
 			s, key, name = ls, locKey(f), loc
 		}
 	}
-	if s < minMedium || match.IsTrail(p.Name) && !match.IsTrail(name) {
+	// A trail, byway or wild and scenic river only takes an outline of its
+	// own kind, or a river the agencies map as a wild and scenic one.
+	fits := match.RouteFits(p.Name, name) || match.IsWildRiver(p.Name) && prop(f, "Des_Tp") == "WSR"
+	if s < minMedium || !fits {
 		return nil
 	}
 	c := &candidate{
