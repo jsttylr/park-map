@@ -8,6 +8,7 @@ require (
 	github.com/engelsjk/polygol v0.0.3
 	github.com/paulmach/orb v0.13.0
 	github.com/paulmach/osm v0.9.0
+	golang.org/x/text v0.22.0
 )
 
 require (
@@ -17,6 +18,5 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/paulmach/protoscan v0.2.1 // indirect
 	go.mongodb.org/mongo-driver/v2 v2.5.0 // indirect
-	golang.org/x/text v0.22.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 )

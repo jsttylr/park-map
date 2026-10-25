@@ -72,6 +72,16 @@ func okName(a attrs) string {
 	return n
 }
 
+// wdfwName names a WDFW wildlife area the way POTA does ("Asotin Creek
+// Wildlife Area"); water access sites and other sites keep their own names.
+func wdfwName(a attrs) string {
+	n := a.s("ManagedPlaceName")
+	if a.s("PlaceTypeName") == "Wildlife Area" && !strings.HasSuffix(n, "Wildlife Area") {
+		return n + " Wildlife Area"
+	}
+	return n
+}
+
 // ilName adds the kind of land to an Illinois DNR site's name ("Devil's
 // Island" is a state fish and wildlife area).
 func ilName(a attrs) string {
@@ -362,6 +372,37 @@ var sources = []source{
 	// owners ("Barber, Arthur") and are left out.
 	{Label: "Rhode Island DEM lands", URL: "https://risegis.ri.gov/hosting/rest/services/RIDEM/Outdoor_Recreation_Map_v4/FeatureServer/21",
 		Where: "NAME NOT LIKE '%,%'", Name: field("NAME", ""), State: "RI", Manager: "RI DEM", Designation: "STATE", Class: "RI DEM Lands"},
+
+	// The last ring. Washington: WDFW wildlife areas, their units, and water
+	// access sites (POTA's "State Fishing Lakes", named for the lake), and
+	// State Parks.
+	{Label: "Washington WDFW places", URL: "https://geodataservices.wdfw.wa.gov/arcgis/rest/services/WP_RealEstate/ManagedPlaces/MapServer/0",
+		Name: wdfwName, State: "WA", Manager: "WDFW", Designation: "STATE", Class: "WA WDFW Places"},
+	{Label: "Washington WDFW wildlife area units", URL: "https://geodataservices.wdfw.wa.gov/arcgis/rest/services/WP_RealEstate/WildlifeAreas/MapServer/0",
+		Name: field("WildlifeAreaUnitName", "Wildlife Area"), State: "WA", Manager: "WDFW", Designation: "STATE", Class: "WA WDFW Wildlife Area Units"},
+	{Label: "Washington state parks", URL: "https://services5.arcgis.com/4LKAHwqnBooVDUlX/arcgis/rest/services/ParkBoundaries/FeatureServer/2",
+		Name: field("LABEL_LOCAL", ""), State: "WA", Manager: "WA Parks", Designation: "STATE", Class: "WA State Parks"},
+
+	// Alaska State Parks units (parks, recreation areas and sites).
+	{Label: "Alaska state parks", URL: "https://arcgis.dnr.alaska.gov/arcgis/rest/services/OpenData/Recreational_ParkBoundary/FeatureServer/2",
+		Name: field("PARKNAME", ""), State: "AK", Manager: "AK DPOR", Designation: "STATE", Class: "AK State Parks"},
+
+	// Oregon State Parks and ODFW wildlife areas.
+	{Label: "Oregon state parks", URL: "https://maps.prd.state.or.us/arcgis/rest/services/Land_ownership/Oregon_State_Parks/FeatureServer/0",
+		Name: field("FULL_NAME", ""), State: "OR", Manager: "OPRD", Designation: "STATE", Class: "OR State Parks"},
+	{Label: "Oregon wildlife areas", URL: "https://nrimp.dfw.state.or.us/arcgis/rest/services/ORHAM/ODFW_Wildlife_Areas/MapServer/0",
+		Name: field("AreaName", "Wildlife Area"), State: "OR", Manager: "ODFW", Designation: "STATE", Class: "OR Wildlife Areas"},
+
+	// Nevada Department of Wildlife WMAs.
+	{Label: "Nevada wildlife management areas", URL: "https://services.arcgis.com/RyxlXSfFi87rAosq/arcgis/rest/services/NDOWWMAs/FeatureServer/0",
+		Name: field("WMA_NAME", wma), State: "NV", Manager: "NDOW", Designation: "STATE", Class: "NV WMAs"},
+
+	// Hawaii DLNR reserves (forest reserves, sanctuaries, natural area
+	// reserves, state parks) and State Parks boundaries.
+	{Label: "Hawaii reserves", URL: "https://geodata.hawaii.gov/arcgis/rest/services/Terrestrial/MapServer/1",
+		Where: "type_defin NOT IN ('The Nature Conservancy Preserve', 'Private Preserve', 'Land Trust', 'Military')", Name: field("xname", ""), State: "HI", Manager: "HI DLNR", Designation: "STATE", Class: "HI Reserves"},
+	{Label: "Hawaii state parks", URL: "https://services.arcgis.com/HQ0xoN0EzDPBOEci/arcgis/rest/services/State_Park_Boundaries/FeatureServer/0",
+		Name: field("NAME", ""), State: "HI", Manager: "HI DSP", Designation: "STATE", Class: "HI State Parks"},
 
 	// Official routes of the national historic and scenic trails, mostly old
 	// roads and water routes that OpenStreetMap doesn't map as one trail.

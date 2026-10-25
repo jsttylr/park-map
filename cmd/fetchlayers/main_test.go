@@ -43,6 +43,8 @@ func TestStateNames(t *testing.T) {
 		{ilName(attrs{"Name": "Burning Star No. 5", "CLASSIFICA": "NC"}), "Burning Star No. 5"},
 		{okName(attrs{"WMANAME": "Lake Vanderwork", "WMATYPE": "PFA"}), "Lake Vanderwork State Fishing Lake"},
 		{okName(attrs{"WMANAME": "Sans Bois Wildlife Management Area", "WMATYPE": "WMA"}), "Sans Bois Wildlife Management Area"},
+		{wdfwName(attrs{"ManagedPlaceName": "Asotin Creek", "PlaceTypeName": "Wildlife Area"}), "Asotin Creek Wildlife Area"},
+		{wdfwName(attrs{"ManagedPlaceName": "Jameson Lake", "PlaceTypeName": "Water Access Site"}), "Jameson Lake"},
 	} {
 		if c.got != c.want {
 			t.Errorf("got %q, want %q", c.got, c.want)

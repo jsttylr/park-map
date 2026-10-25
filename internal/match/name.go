@@ -4,6 +4,8 @@ package match
 import (
 	"strings"
 	"unicode"
+
+	"golang.org/x/text/unicode/norm"
 )
 
 // abbrev expands short forms that show up in POTA and PAD-US names.
@@ -36,8 +38,13 @@ func Tokens(s string) []string {
 	s = strings.ToLower(s)
 	s = strings.ReplaceAll(s, "c&d", "chesapeake and delaware")
 	s = strings.ReplaceAll(s, "&", " and ")
-	s = strings.NewReplacer("'", "", "’", "").Replace(s)
+	// Apostrophes, and Hawaiian ʻokina however they're typed ("Koke`e",
+	// "ʻEwa"), join the word; accents and macrons drop ("Pāʻulaʻula").
+	s = strings.NewReplacer("'", "", "’", "", "‘", "", "`", "", "ʻ", "", "ʼ", "").Replace(norm.NFD.String(s))
 	s = strings.Map(func(r rune) rune {
+		if unicode.Is(unicode.Mn, r) {
+			return -1
+		}
 		if unicode.IsLetter(r) || unicode.IsDigit(r) {
 			return r
 		}
