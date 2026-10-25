@@ -51,36 +51,22 @@ jobs:
               for r in d.get("results", []):
                   if "PADUS" in r["title"] or "PAD-US" in r["title"] or "Amrivers" in r["owner"]: continue
                   print("   ", r["title"], "|", r["owner"], "|", r.get("url"))
-          nd = "https://services1.arcgis.com/GOcSXpzwBHyk2nog/ArcGIS/rest/services/"
-          for u in [nd + "NDGISHUB_State_Parks/FeatureServer", nd + "NDGISHUB_State_Forest/FeatureServer", nd + "NDGISHUB_Wildlife_Management_Areas/FeatureServer",
-                    "https://fwp-gis.mt.gov/arcgis/rest/services/fwplnd/fwpLands/MapServer",
-                    "https://gis.trustlands.utah.gov/mapping/rest/services/Land_Ownership/FeatureServer",
-                    "https://nhgeodata.unh.edu/hosting/rest/services/Hosted/EC_Conservation/FeatureServer",
-                    "https://gis.idfg.idaho.gov/server/rest/services/Access/MapServer",
-                    "https://risegis.ri.gov/hosting/rest/services/RIDEM/Outdoor_Recreation_Map_v4/FeatureServer/21"]:
-              lays(u)
-          names(nd + "NDGISHUB_State_Parks/FeatureServer/0", "UNIT_NAME", "1=1")
-          names(nd + "NDGISHUB_State_Forest/FeatureServer/0", "DESCRIPTION", "1=1")
-          names(nd + "NDGISHUB_Wildlife_Management_Areas/FeatureServer/0", "UNIT_NAME", "UNIT_NAME LIKE '%Lone%' OR UNIT_NAME LIKE '%Maclean%' OR UNIT_NAME LIKE '%Raab%'")
-          ut = "https://gis.trustlands.utah.gov/mapping/rest/services/Land_Ownership/FeatureServer/0"
-          group(ut, "state_lgd"); group(ut, "admin")
-          names(ut, "label_state", "state_lgd='State Wildlife Reserve/Management Area'")
-          names(ut, "label_state", "state_lgd='State Parks and Recreation'")
-          names(ut, "label_state", "state_lgd='Other State'")
-          mt = "https://fwp-gis.mt.gov/arcgis/rest/services/fwplnd/fwpLands/MapServer/"
-          for l in ("2", "5", "8"): print("   count", l, get(mt + l + "/query", where="1=1", returnCountOnly="true", f="json"))
-          names(mt + "8", "NAME", "NAME LIKE '%Fish Creek%'"); names(mt + "5", "NAME", "NAME LIKE '%Finley%' OR NAME LIKE '%Somers%'")
-          me = "https://gis.maine.gov/arcgis/rest/services/dep/Maine_DEP_Outstanding_National_Resource_Waters/MapServer/5"
-          info(me); group(me, "HOLD1_NAME"); group(me, "DESIGNATION")
+          nh = "https://nhgeodata.unh.edu/hosting/rest/services/Hosted/EC_Conservation/FeatureServer/0"
+          group(nh, "ppagentype"); group(nh, "pptype"); group(nh, "ownertype")
+          names(nh, "name", "name LIKE '%Annett%' OR name LIKE '%Ashenden%' OR name LIKE '%Davis-White%' OR name LIKE '%Lovewell%' OR name LIKE '%Max Israel%' OR name LIKE '%Merrimack River%' OR name LIKE '%Merriman%' OR name LIKE '%Mount Major%' OR name LIKE '%Nash Stream%' OR name LIKE '%White Farm%' OR name LIKE '%Eisenhower%' OR name LIKE '%Gardner Memorial%' OR name LIKE '%Taylor%Mill%' OR name LIKE '%Walski%'")
+          sample(nh, "name LIKE '%Annett%' OR name LIKE '%Nash Stream%'", n=4, fields="name,p_name,ppagency,ppagentype,pptype,ownertype")
+          names(nh, "name", "ppagentype=3 AND pptype='FO' AND name LIKE '%A%'")
+          me = "https://gis.maine.gov/mapservices/rest/services/dep/Maine_DEP_Outstanding_National_Resource_Waters/MapServer/5"
+          info(me); group(me, "HOLD1_TYPE"); group(me, "HOLD1_NAME"); group(me, "DESIGNATION")
           names(me, "PROJECT", "PROJECT LIKE '%Fort Point%' OR PROJECT LIKE '%Ossip%' OR PROJECT LIKE '%Holeb%' OR PROJECT LIKE '%Chamberlain%' OR PROJECT LIKE '%Carlton%'")
-          ri = "https://risegis.ri.gov/hosting/rest/services/RIDEM/Outdoor_Recreation_Map_v4/FeatureServer/21"
-          group(ri, "DEM_DIV")
-          names(ri, "NAME", "NAME LIKE '%Big River%' OR NAME LIKE '%Matunuck%' OR NAME LIKE '%Rome Point%' OR NAME LIKE '%Cronin%' OR NAME LIKE '%Patriots%' OR NAME LIKE '%Hillsdale%' OR NAME LIKE '%Barber%'")
-          for q in ["North Dakota state historic sites", "State Historical Society of North Dakota sites",
-                    "New Hampshire state forests DNCR", "New Hampshire conservation public lands",
-                    "Idaho Fish and Game wildlife management areas", "Idaho airstrips",
-                    "Utah DWR wildlife management areas", "Utah waterfowl management areas", "Utah state parks boundaries",
-                    "Arizona Game and Fish wildlife areas", "Arizona state parks boundaries",
-                    "Maine conserved lands", "Maine wildlife management areas MDIFW",
-                    "Montana state trust lands", "Montana DNRC state forests"]:
-              osearch(q)
+          ut = "https://gis.trustlands.utah.gov/mapping/rest/services/Land_Ownership/FeatureServer/0"
+          names(ut, "label_state", "label_state LIKE '%Hatchery%' OR label_state LIKE '%Kamas%' OR label_state LIKE '%Willard%' OR label_state LIKE '%Desert Lake%' OR label_state LIKE '%Locomotive%' OR label_state LIKE '%Public Shooting%' OR label_state LIKE '%Richmond%' OR label_state LIKE '%Goslin%' OR label_state LIKE '%Causey%' OR label_state LIKE '%Millsite%' OR label_state LIKE '%Monte Cristo%' OR label_state LIKE '%Wedge%'")
+          group(ut, "admin", "label_state LIKE '%Hatchery%'")
+          ul = "https://services.arcgis.com/ZzrwjTRez6FJiOq4/arcgis/rest/services/ULTRA_Properties_2_view/FeatureServer"
+          lays(ul)
+          idw = "https://services.arcgis.com/FjJI5xHF2dUPVrgK/arcgis/rest/services/WildlifeManagementAreas/FeatureServer/0"
+          names(idw, "Name", "1=1")
+          mt = "https://fwp-gis.mt.gov/arcgis/rest/services/fwplnd/fwpLands/MapServer/2"
+          names(mt, "NAME", "NAME LIKE '%Big Horn%' OR NAME LIKE '%Bonfield%' OR NAME LIKE '%Grey Cliff%' OR NAME LIKE '%Harper%' OR NAME LIKE '%Island Lake%' OR NAME LIKE '%Prewitt%' OR NAME LIKE '%Thoreau%'")
+          nd = "https://services1.arcgis.com/GOcSXpzwBHyk2nog/ArcGIS/rest/services/NDGISHUB_Wildlife_Management_Areas/FeatureServer/0"
+          names(nd, "Unit_Name", "Unit_Name LIKE '%Lone%' OR Unit_Name LIKE '%Maclean%' OR Unit_Name LIKE '%Raab%'")
