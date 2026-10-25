@@ -51,7 +51,21 @@ jobs:
               for r in d.get("results", []):
                   if "PADUS" in r["title"] or "PAD-US" in r["title"] or "Amrivers" in r["owner"]: continue
                   print("   ", r["title"], "|", r["owner"], "|", r.get("url"))
-          info("https://dnrmaps.wi.gov/arcgis/rest/services/LF_DML/LF_AGOL_STAGING_WTM_Ext/MapServer/0")
-          info("https://dnrmaps.wi.gov/arcgis/rest/services")
-          for q in ["Wisconsin DNR managed lands", "DNR Managed Lands Wisconsin", "Wisconsin state natural areas", "Wisconsin wildlife areas DNR", "Wisconsin DNR lands open data", "Wisconsin state parks forests boundaries"]:
+          info("https://geodataservices.wdfw.wa.gov/arcgis/rest/services/WP_RealEstate")
+          lays("https://geodataservices.wdfw.wa.gov/arcgis/rest/services/WP_RealEstate/WaterAccessSites/MapServer")
+          lays("https://arcgis.dnr.alaska.gov/arcgis/rest/services/OpenData/Recreational_ParkBoundary/FeatureServer")
+          ak = "https://arcgis.dnr.alaska.gov/arcgis/rest/services/OpenData/Recreational_ParkBoundary/FeatureServer/2"
+          print("   count", get(ak + "/query", where="1=1", returnCountOnly="true", f="json"))
+          info("https://geodata.hawaii.gov/arcgis/rest/services")
+          info("https://geodata.hawaii.gov/arcgis/rest/services/Terrestrial/MapServer")
+          lays("https://geodata.hawaii.gov/arcgis/rest/services/Terrestrial/MapServer")
+          info("https://geodata.hawaii.gov/arcgis/rest/services/Infrastructure/MapServer")
+          lays("https://gis.parks.ca.gov/server/rest/services/EnterpriseGIS/CSPBoundaries_Portal/FeatureServer")
+          info("https://gis.dnr.wa.gov/site3/rest/services")
+          info("https://nrimp.dfw.state.or.us/arcgis/rest/services/Hatchery/Hatchery_and_Hatchery_Facilities/FeatureServer/0")
+          lays("https://nrimp.dfw.state.or.us/arcgis/rest/services/ORHAM/ODFW_Wildlife_Areas/MapServer")
+          for q in ["WDFW lands", "WDFW water access sites", "Washington DNR managed lands", "Washington state parks boundaries", "Washington DNR state forests",
+                    "Alaska state recreation sites", "Hawaii state parks", "Hawaii Na Ala Hele trails", "Hawaii forest reserves",
+                    "ODFW hatcheries", "Oregon state parks boundaries", "Oregon state forests ODF",
+                    "NDOW wildlife management areas", "Nevada state parks boundaries", "Nevada historical markers"]:
               osearch(q)
