@@ -41,7 +41,6 @@ const (
 	gatherKm = 10.0 // how far to gather the other pieces of the chosen area
 	kmPerDeg = 111.0
 	maxAcres = 2_000_000 // an area bigger than this is a county or a whole forest, not a park
-	minAcres = 0.05      // smaller is a sign or a sliver, not an outline
 )
 
 type park struct {
@@ -83,7 +82,7 @@ func (p *park) add(name, id string, mp orb.MultiPolygon, score float64, inside b
 // then the best-matching name.
 func (p *park) choose() {
 	for _, c := range p.cands {
-		if a := acres(c.geom); a > maxAcres || a < minAcres {
+		if acres(c.geom) > maxAcres {
 			continue
 		}
 		b := p.best
