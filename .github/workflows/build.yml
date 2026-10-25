@@ -113,7 +113,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: osm-parks.geojsonl.gz
-          key: osmparks-v3-${{ steps.month.outputs.m }}
+          key: osmparks-v4-${{ steps.month.outputs.m }}
       - name: Park outlines from OpenStreetMap
         id: osmareas
         if: steps.osmparks.outputs.cache-hit != 'true'
@@ -138,7 +138,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: osm-parks.geojsonl.gz
-          key: osmparks-v3-${{ steps.month.outputs.m }}
+          key: osmparks-v4-${{ steps.month.outputs.m }}
       # Agency maps that fill in parks PAD-US doesn't draw (BLM, FWS, Army
       # Corps, Reclamation, NPS) and the official national historic trail
       # routes. Cached for the month; a service that's down only leaves its
@@ -201,7 +201,7 @@ jobs:
           A=""; if [ -s agency-areas.geojsonl.gz ]; then A="agency-areas.geojsonl.gz"; fi
           if [ -s state-areas.geojsonl.gz ]; then A="$A state-areas.geojsonl.gz"; fi
           O=""; if [ -s osm-parks.geojsonl.gz ]; then O="-osm osm-parks.geojsonl.gz"; fi
-          mkdir -p data && go run ./cmd/builddata -pota all_parks_ext.csv -out data/us-parks.geojson.gz -report report.csv $T $O -show US-0878,US-5767,US-7806,US-10419,US-10680,US-10816,US-0884,US-13259 padus.geojsonl.gz $A
+          mkdir -p data && go run ./cmd/builddata -pota all_parks_ext.csv -out data/us-parks.geojson.gz -report report.csv $T $O -show US-12457,US-0882,US-0897,US-13099,US-10249,US-12630,US-10643,US-6811 padus.geojsonl.gz $A
       - name: Download SOTA summits and sotl.as activation zones
         env:
           GH_TOKEN: ${{ github.token }}

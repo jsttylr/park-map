@@ -19,12 +19,46 @@ const (
 	officialKm    = 300
 	alongScore    = 0.7 // for a byway or river
 	alongKm       = 25
+	joinKm        = 2 // pieces of one route this close are joined
 )
 
 // official is one agency's route for a trail, from cmd/fetchlayers.
 type official struct {
 	name, source, manager string
 	lines                 orb.MultiLineString
+	parts                 []orb.MultiLineString // each feature's lines
+}
+
+// near keeps the pieces of a route that reach a pin: those within km of it
+// and those joined end to end to them. Two rivers of one name (the Salmon in
+// Idaho and in Oregon) are different parks.
+func (o *official) near(pt orb.Point, km float64) orb.MultiLineString {
+	var kept orb.MultiLineString
+	used := make([]bool, len(o.parts))
+	for i, p := range o.parts {
+		if nearestKm(p, pt) <= km {
+			kept, used[i] = append(kept, p...), true
+		}
+	}
+	for grew := len(kept) > 0; grew; {
+		grew = false
+		for i, p := range o.parts {
+			if !used[i] && joins(p, kept) {
+				kept, used[i], grew = append(kept, p...), true, true
+			}
+		}
+	}
+	return kept
+}
+
+// joins reports whether a piece of route starts or ends at another.
+func joins(p, kept orb.MultiLineString) bool {
+	for _, l := range p {
+		if len(l) > 0 && (nearestKm(kept, l[0]) <= joinKm || nearestKm(kept, l[len(l)-1]) <= joinKm) {
+			return true
+		}
+	}
+	return false
 }
 
 // readOfficial gathers the routes in a fetchlayers lines file by name.
@@ -46,12 +80,15 @@ func readOfficial(path string) (map[string]*official, error) {
 			o = &official{name: name, source: src, manager: mgr}
 			out[name] = o
 		}
+		var ml orb.MultiLineString
 		switch g := f.Geometry.(type) {
 		case orb.LineString:
-			o.lines = append(o.lines, g)
+			ml = orb.MultiLineString{g}
 		case orb.MultiLineString:
-			o.lines = append(o.lines, g...)
+			ml = g
 		}
+		o.lines = append(o.lines, ml...)
+		o.parts = append(o.parts, ml)
 		return nil
 	})
 	return out, err
@@ -95,11 +132,13 @@ func useOfficial(parks []*park, officialPath, merge, out string) error {
 	used := 0
 	for _, p := range parks {
 		var best *official
-		bestScore := 0.0
+		var bestLines orb.MultiLineString
+		bestScore, bestKm := 0.0, 0.0
 		// A byway or river's pin is on its route, and their official names
 		// are shorter ("Payette River Scenic Byway").
 		cands, minScore, maxKm := names, officialScore, float64(officialKm)
-		if match.IsByway(p.Name) || match.IsWildRiver(p.Name) {
+		along := match.IsByway(p.Name) || match.IsWildRiver(p.Name)
+		if along {
 			minScore, maxKm = alongScore, alongKm
 		} else if !match.EndsInTrail(p.Name) {
 			cands = nil // keeps its OpenStreetMap route
@@ -112,10 +151,18 @@ func useOfficial(parks []*park, officialPath, merge, out string) error {
 			// after it ("Trail of Tears State Forest"). Its pin can be well
 			// off a route across several states.
 			s := match.Similarity(p.Name, n)
-			if s < minScore || s <= bestScore || nearestKm(routes[n].lines, p.Pt) > maxKm {
+			if s < minScore || s < bestScore {
 				continue
 			}
-			best, bestScore = routes[n], s
+			lines := routes[n].lines
+			if along {
+				lines = routes[n].near(p.Pt, maxKm)
+			}
+			km := nearestKm(lines, p.Pt)
+			if len(lines) == 0 || km > maxKm || s == bestScore && km >= bestKm {
+				continue
+			}
+			best, bestLines, bestScore, bestKm = routes[n], lines, s, km
 		}
 		if best == nil {
 			if b := osmLines[p.Ref]; b != nil {
@@ -124,7 +171,7 @@ func useOfficial(parks []*park, officialPath, merge, out string) error {
 			}
 			continue
 		}
-		ft := geojson.NewFeature(best.lines)
+		ft := geojson.NewFeature(bestLines)
 		ft.Properties["ref"] = p.Ref
 		ft.Properties["osm"] = "official/" + best.source
 		ft.Properties["osm_name"] = best.name
@@ -138,7 +185,7 @@ func useOfficial(parks []*park, officialPath, merge, out string) error {
 		w.WriteString("\n")
 		used++
 		km := 0.0
-		for _, l := range best.lines {
+		for _, l := range bestLines {
 			km += lengthKm(l)
 		}
 		was := "no OpenStreetMap route"
