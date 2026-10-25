@@ -131,7 +131,7 @@ These are the choices behind what the map draws, and why.
 
 ### Boundaries are matched by name
 
-POTA doesn't publish park boundaries, so each park is matched to the USGS Protected Areas Database (PAD-US) by its name and location. Most matches are clean. A match that's only fair is still drawn, but listed as a weak match so it can be checked. A few will be wrong, and about 1,550 parks have no boundary at all (see [Parks with no boundary](#parks-with-no-boundary)).
+POTA doesn't publish park boundaries, so each park is matched to the USGS Protected Areas Database (PAD-US) by its name and location. Most matches are clean. A match that's only fair is still drawn, but listed as a weak match so it can be checked. A few will be wrong, and about 1,340 parks have no boundary at all (see [Parks with no boundary](#parks-with-no-boundary)).
 
 A POTA pin sometimes sits a little outside its park, at a parking lot or moved to keep the POTA map readable, so a pin within 100 m of a well-named outline counts as inside it.
 
@@ -167,7 +167,7 @@ N-fer areas are the exact overlaps of the boundaries. Two parks that only share 
 
 ### Parks with no boundary
 
-[docs/parks-missing-boundaries.xlsx](docs/parks-missing-boundaries.xlsx) is a snapshot of the parks the map can't draw yet, from the build of 24 October 2026. Most of them are BLM recreation sites (campgrounds, trailheads, boat ramps) that no agency maps as an area, and state wildlife areas, which need each state's own maps. The sheet has these tabs:
+[docs/parks-missing-boundaries.xlsx](docs/parks-missing-boundaries.xlsx) is a snapshot of the parks the map can't draw yet, from the build of 25 October 2026. Most of them are BLM recreation sites (trailheads, boat ramps, overlooks) that nobody maps as an area, roadside historical markers and small monuments, and state wildlife areas whose state has no usable map. The sheet has these tabs:
 
 - **Summary:** counts by kind of park and by state.
 - **No boundary:** every undrawn park with links to its POTA page and a map.
