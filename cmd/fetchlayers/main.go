@@ -362,7 +362,9 @@ func main() {
 		}
 		c.f.Close()
 	}
+	// The files are still written for this build to use, but a failed exit
+	// keeps a layer set with a source missing from being cached for the month.
 	if failed > 0 {
-		log.Printf("%d sources failed", failed)
+		log.Fatalf("%d sources failed", failed)
 	}
 }

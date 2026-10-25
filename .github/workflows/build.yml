@@ -139,7 +139,7 @@ jobs:
       # Agency maps that fill in parks PAD-US doesn't draw (BLM, FWS, Army
       # Corps, Reclamation, NPS) and the official national historic trail
       # routes. Cached for the month; a service that's down only leaves its
-      # parks as they were.
+      # parks as they were, and that build is not cached so the next one retries.
       - name: Cached agency layers
         id: agency
         uses: actions/cache/restore@v4
