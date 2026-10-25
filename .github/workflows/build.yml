@@ -74,14 +74,15 @@ jobs:
       - name: Download POTA park list
         run: curl -fsSL -o all_parks_ext.csv https://pota.app/all_parks_ext.csv && wc -l all_parks_ext.csv
       # Trail routes come from OpenStreetMap: each state with a trail park is
-      # downloaded from Geofabrik and cut down to routes and paths, then
-      # matched to the parks. Cached for the month.
+      # downloaded from Geofabrik and cut down to routes and paths (and the
+      # road routes of scenic byways), then matched to the parks. Cached for
+      # the month.
       - name: Cached trail routes
         id: trails
         uses: actions/cache/restore@v4
         with:
           path: trails.geojsonl.gz
-          key: trails-v4-${{ steps.month.outputs.m }}
+          key: trails-v5-${{ steps.month.outputs.m }}
       - name: Trail routes from OpenStreetMap
         id: osm
         if: steps.trails.outputs.cache-hit != 'true'
@@ -91,7 +92,7 @@ jobs:
           sudo apt-get update -qq && sudo apt-get install -y -qq osmium-tool > /dev/null
           for s in $(go run ./cmd/fetchtrails -pota all_parks_ext.csv -states); do
             curl -fsSL --retry 3 -o state.osm.pbf "https://download.geofabrik.de/north-america/us/$s-latest.osm.pbf"
-            osmium tags-filter --overwrite -o "f-$s.osm.pbf" state.osm.pbf r/route=hiking,foot,walking,bicycle,mtb,horse,historic,canoe,ski,inline_skates,running,fitness_trail w/highway=path,footway,cycleway,bridleway
+            osmium tags-filter --overwrite -o "f-$s.osm.pbf" state.osm.pbf r/route=hiking,foot,walking,bicycle,mtb,horse,historic,canoe,ski,inline_skates,running,fitness_trail w/highway=path,footway,cycleway,bridleway "r/name=*Byway*" "r/name=*Scenic Highway*"
             rm state.osm.pbf
           done
           osmium merge --overwrite -o us-trails.osm.pbf f-*.osm.pbf && rm f-*.osm.pbf && ls -la us-trails.osm.pbf
@@ -101,17 +102,18 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: trails.geojsonl.gz
-          key: trails-v4-${{ steps.month.outputs.m }}
+          key: trails-v5-${{ steps.month.outputs.m }}
       # Park outlines from OpenStreetMap, for the parks no agency maps as its
       # own area: pieces of bigger units, city and county parks, and parks too
-      # new for PAD-US. Each state's extract is cut down to named park areas
-      # and exported as polygons. Cached for the month.
+      # new for PAD-US, campgrounds, hatcheries, airstrips and historic sites.
+      # Each state's extract is cut down to those areas and its named lakes
+      # (for the fishing lakes) and exported as polygons. Cached for the month.
       - name: Cached OpenStreetMap park outlines
         id: osmparks
         uses: actions/cache/restore@v4
         with:
           path: osm-parks.geojsonl.gz
-          key: osmparks-v2-${{ steps.month.outputs.m }}
+          key: osmparks-v3-${{ steps.month.outputs.m }}
       - name: Park outlines from OpenStreetMap
         id: osmareas
         if: steps.osmparks.outputs.cache-hit != 'true'
@@ -122,10 +124,11 @@ jobs:
           : > areas.geojsonseq.gz
           for s in $(go run ./cmd/fetchosmparks -pota all_parks_ext.csv -states); do
             curl -fsSL --retry 3 -o state.osm.pbf "https://download.geofabrik.de/north-america/us/$s-latest.osm.pbf"
-            osmium tags-filter --overwrite -o areas.osm.pbf state.osm.pbf wr/leisure=park,nature_reserve,recreation_ground,garden wr/boundary=protected_area,national_park wr/landuse=recreation_ground
-            rm state.osm.pbf
-            osmium export areas.osm.pbf -f geojsonseq --geometry-types=polygon --add-unique-id=type_id | gzip >> areas.geojsonseq.gz
-            rm areas.osm.pbf
+            osmium tags-filter --overwrite -o areas.osm.pbf state.osm.pbf wr/leisure=park,nature_reserve,recreation_ground,garden wr/boundary=protected_area,national_park wr/landuse=recreation_ground,aquaculture wr/tourism=camp_site,picnic_site wr/aeroway=aerodrome,airstrip wr/historic "wr/name=*Hatchery*"
+            osmium tags-filter --overwrite -o water.osm.pbf state.osm.pbf wr/natural=water
+            osmium tags-filter --overwrite -o lakes.osm.pbf water.osm.pbf "wr/name=*Lake*" "wr/name=*Pond*" "wr/name=*Reservoir*"
+            rm state.osm.pbf water.osm.pbf
+            for f in areas lakes; do osmium export $f.osm.pbf -f geojsonseq --geometry-types=polygon --add-unique-id=type_id | gzip >> areas.geojsonseq.gz; rm $f.osm.pbf; done
           done
           ls -la areas.geojsonseq.gz
           go run ./cmd/fetchosmparks -pota all_parks_ext.csv -areas areas.geojsonseq.gz -out osm-parks.geojsonl.gz
@@ -135,7 +138,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: osm-parks.geojsonl.gz
-          key: osmparks-v2-${{ steps.month.outputs.m }}
+          key: osmparks-v3-${{ steps.month.outputs.m }}
       # Agency maps that fill in parks PAD-US doesn't draw (BLM, FWS, Army
       # Corps, Reclamation, NPS) and the official national historic trail
       # routes. Cached for the month; a service that's down only leaves its
@@ -145,7 +148,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: agency-*.geojsonl.gz
-          key: agency-v2-${{ steps.month.outputs.m }}
+          key: agency-v3-${{ steps.month.outputs.m }}
       - name: Agency layers
         id: fetchagency
         if: steps.agency.outputs.cache-hit != 'true'
@@ -157,7 +160,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: agency-*.geojsonl.gz
-          key: agency-v2-${{ steps.month.outputs.m }}
+          key: agency-v3-${{ steps.month.outputs.m }}
       # The states' own maps of their parks, forests and wildlife areas, from
       # Virginia outward. Cached for the month like the agency layers.
       - name: Cached state layers
@@ -198,7 +201,7 @@ jobs:
           A=""; if [ -s agency-areas.geojsonl.gz ]; then A="agency-areas.geojsonl.gz"; fi
           if [ -s state-areas.geojsonl.gz ]; then A="$A state-areas.geojsonl.gz"; fi
           O=""; if [ -s osm-parks.geojsonl.gz ]; then O="-osm osm-parks.geojsonl.gz"; fi
-          mkdir -p data && go run ./cmd/builddata -pota all_parks_ext.csv -out data/us-parks.geojson.gz -report report.csv $T $O -show US-2215,US-3157,US-7191,US-10003,US-10345,US-10904,US-12599,US-13349 padus.geojsonl.gz $A
+          mkdir -p data && go run ./cmd/builddata -pota all_parks_ext.csv -out data/us-parks.geojson.gz -report report.csv $T $O -show US-0878,US-5767,US-7806,US-10419,US-10680,US-10816,US-0884,US-13259 padus.geojsonl.gz $A
       - name: Download SOTA summits and sotl.as activation zones
         env:
           GH_TOKEN: ${{ github.token }}

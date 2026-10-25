@@ -1,6 +1,10 @@
 package main
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/jsttylr/park-map/internal/match"
+)
 
 const (
 	blm    = "https://gis.blm.gov/arcgis/rest/services/"
@@ -10,6 +14,26 @@ const (
 	usbr   = "https://services1.arcgis.com/ixD30sld6F8MQ7V5/arcgis/rest/services/"
 	blmHub = "https://services1.arcgis.com/KbxwQRRfWyEYLgp4/arcgis/rest/services/"
 )
+
+// byway names a scenic byway's route so it reads as one ("Talimena Scenic
+// Drive" is "Talimena Scenic Byway", "Red Gulch/Alkali Back Country Byway"
+// is "... Backcountry Byway", as POTA spells it).
+func byway(k string) func(attrs) string {
+	fix := strings.NewReplacer("Back Country", "Backcountry", "Scenin", "Scenic", "  ", " ")
+	return func(a attrs) string {
+		n := fix.Replace(a.s(k))
+		if n == "" || match.IsByway(n) {
+			return n
+		}
+		for _, road := range []string{" Scenic Drive", " Drive", " Road", " Highway", " Parkway"} {
+			if strings.HasSuffix(n, road) {
+				n = strings.TrimSuffix(n, road)
+				break
+			}
+		}
+		return n + " Scenic Byway"
+	}
+}
 
 // named gives every feature of a layer the same name, for layers that are one
 // trail and carry no name of their own.
@@ -454,6 +478,18 @@ var sources = []source{
 		Name: named("Butterfield Overland National Historic Trail"), Manager: "NPS", Lines: true},
 	{Label: "NPS Civil War Defenses of Washington trail", URL: nps + "CWDW_Circuit_Trails_2023_NPS/FeatureServer/19",
 		Name: named("Civil War Defenses of Washington National Historic Trail"), Manager: "NPS", Lines: true},
+	// Official lines of the wild and scenic rivers and the scenic byways,
+	// which POTA activates along their length like the trails.
+	{Label: "Wild and scenic rivers", URL: "https://apps.fs.usda.gov/arcx/rest/services/EDW/EDW_WildScenicRiverSegments_01/MapServer/0",
+		Name: field("wsr_river_name", ""), Manager: "NWSRS", Lines: true},
+	{Label: "National scenic byways", URL: "https://services3.arcgis.com/OYP7N6mAJJCyH6hd/arcgis/rest/services/National_Scenic_Byways/FeatureServer/0",
+		Name: byway("NAME"), Manager: "FHWA", Lines: true},
+	{Label: "Utah scenic byways", URL: "https://services.arcgis.com/pA2nEVnB6tquxgOW/arcgis/rest/services/Utah_Scenic_Byways/FeatureServer/0",
+		Name: byway("NAME"), Manager: "UDOT", Lines: true},
+	{Label: "Idaho scenic byways", URL: "https://gisp.itd.idaho.gov/server/rest/services/GDWarehouse/RoadNetwork_Other/FeatureServer/6",
+		Where: "Designation <> 'Proposed'", Name: byway("BywayName"), Manager: "ITD", Lines: true},
+	{Label: "Wyoming scenic byways", URL: "https://services4.arcgis.com/3Gy6zyvWSR2Q8akX/arcgis/rest/services/scenic_highway_byway/FeatureServer/0",
+		Name: byway("Name"), Manager: "WYDOT", Lines: true},
 	{Label: "BLM Nez Perce NHT", URL: blmHub + "Nez_Perce_National_Historic_Trail_2/FeatureServer/0",
 		Name: named("Nez Perce National Historic Trail"), Manager: "BLM", Lines: true},
 }

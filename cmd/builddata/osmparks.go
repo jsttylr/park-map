@@ -32,6 +32,9 @@ func useOSM(path string, parks []*park) (int, error) {
 			Key: "osm:" + prop(f, "osm"), Unit: prop(f, "osm_name"), Manager: "OSM",
 			Designation: "PARK", Layer: "OSM", Score: score, Contains: contains, DistKm: km, Extra: true,
 		}
+		if water, _ := f.Properties["water"].(bool); water {
+			o.Designation = "LAKE" // a fishing lake drawn as its lake
+		}
 		// A confident official outline, or a trail's route, wins. A weak
 		// official match gives way to a better-named OpenStreetMap area, or
 		// to a nearly as well named one that confidently holds the pin

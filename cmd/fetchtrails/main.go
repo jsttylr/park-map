@@ -7,7 +7,10 @@
 // build workflow. Each trail park takes the route near its pin whose name best
 // matches the park's, climbing to the whole trail when that route is one
 // section of a longer one (the Appalachian Trail is a route per state), or,
-// with no such route, the paths near its pin that share its name.
+// with no such route, the paths near its pin that share its name. Scenic
+// byways and wild and scenic rivers are activated along their length the same
+// way: a byway takes a road route named for it, and a river its official
+// line (see official.go).
 //
 //	fetchtrails -states                        # Geofabrik names of the states to download
 //	fetchtrails -osm us-trails.osm.pbf         # match and write trails.geojsonl.gz
@@ -46,7 +49,8 @@ const (
 	minScore = 0.5
 )
 
-// routeTypes are the kinds of route relation a trail park can be.
+// routeTypes are the kinds of route relation a trail park can be. A byway
+// is a road route.
 var routeTypes = map[string]bool{
 	"hiking": true, "foot": true, "walking": true, "bicycle": true, "mtb": true, "horse": true,
 	"historic": true, "canoe": true, "ski": true, "inline_skates": true, "running": true, "fitness_trail": true,
@@ -129,7 +133,7 @@ func main() {
 		return
 	}
 	start := time.Now()
-	log.Printf("%d trail parks", len(parks))
+	log.Printf("%d trail, byway and river parks", len(parks))
 
 	// Parks by the distinctive words of their names, so a route or path name
 	// is only compared with parks it shares a word with.
@@ -143,11 +147,16 @@ func main() {
 		id    int64
 		score float64
 	}
-	matches := func(name string) []*park {
+	// A road route can only be a byway, and a trail route or path only a
+	// trail.
+	matches := func(name string, road bool) []*park {
 		seen := map[*park]bool{}
 		var out []*park
 		for _, w := range match.Distinctive(name) {
 			for _, p := range byWord[w] {
+				if road && !match.IsByway(p.Name) || !road && !match.IsTrail(p.Name) {
+					continue
+				}
 				if !seen[p] && match.SharesName(p.Name, name) && !match.Conflicts(p.Name, name) && match.Similarity(p.Name, name) >= minScore {
 					seen[p] = true
 					out = append(out, p)
@@ -162,7 +171,8 @@ func main() {
 	routeCands := map[*park][]cand{}
 	err = scan(*osmPath, func(sc *osmpbf.Scanner) { sc.SkipNodes, sc.SkipWays = true, true }, func(o osm.Object) {
 		r, ok := o.(*osm.Relation)
-		if !ok || !routeTypes[r.Tags.Find("route")] {
+		road := ok && r.Tags.Find("route") == "road"
+		if !ok || !routeTypes[r.Tags.Find("route")] && !road {
 			return
 		}
 		rt := &route{id: int64(r.ID), name: r.Tags.Find("name")}
@@ -178,7 +188,7 @@ func main() {
 		if rt.name == "" {
 			return
 		}
-		for _, p := range matches(rt.name) {
+		for _, p := range matches(rt.name, road) {
 			routeCands[p] = append(routeCands[p], cand{rt.id, match.Similarity(p.Name, rt.name)})
 		}
 	})
@@ -239,7 +249,7 @@ func main() {
 		var ps []*park
 		name := w.Tags.Find("name")
 		if name != "" && isPath(w.Tags.Find("highway")) {
-			ps = matches(name)
+			ps = matches(name, false)
 		}
 		if !needWays[id] && len(ps) == 0 {
 			return
@@ -504,7 +514,7 @@ func readTrailParks(path, prefix string) ([]*park, error) {
 			return nil, err
 		}
 		ref, name := rec[col["reference"]], rec[col["name"]]
-		if !strings.HasPrefix(ref, prefix) || rec[col["active"]] != "1" || !match.IsTrail(name) {
+		if !strings.HasPrefix(ref, prefix) || rec[col["active"]] != "1" || !match.IsRoute(name) {
 			continue
 		}
 		lat, err1 := strconv.ParseFloat(rec[col["latitude"]], 64)

@@ -47,6 +47,10 @@ func TestStateNames(t *testing.T) {
 		{wdfwName(attrs{"ManagedPlaceName": "Jameson Lake", "PlaceTypeName": "Water Access Site"}), "Jameson Lake"},
 		{nvName(attrs{"WMA_NAME": "Fernley WMA"}), "Fernley Wildlife Management Area"},
 		{nvName(attrs{"WMA_NAME": "Carson Lake Pasture"}), "Carson Lake Pasture Wildlife Management Area"},
+		{byway("NAME")(attrs{"NAME": "Talimena Scenic Drive"}), "Talimena Scenic Byway"},
+		{byway("NAME")(attrs{"NAME": "Beartooth Highway"}), "Beartooth Scenic Byway"},
+		{byway("NAME")(attrs{"NAME": "Logan Canyon Scenic Byway"}), "Logan Canyon Scenic Byway"},
+		{byway("Name")(attrs{"Name": "Red Gulch/Alkali  Back Country Byway"}), "Red Gulch/Alkali Backcountry Byway"},
 	} {
 		if c.got != c.want {
 			t.Errorf("got %q, want %q", c.got, c.want)

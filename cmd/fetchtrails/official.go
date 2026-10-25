@@ -17,6 +17,8 @@ import (
 const (
 	officialScore = 0.9
 	officialKm    = 300
+	alongScore    = 0.7 // for a byway or river
+	alongKm       = 25
 )
 
 // official is one agency's route for a trail, from cmd/fetchlayers.
@@ -94,15 +96,23 @@ func useOfficial(parks []*park, officialPath, merge, out string) error {
 	for _, p := range parks {
 		var best *official
 		bestScore := 0.0
-		for _, n := range names {
-			if !match.EndsInTrail(p.Name) || !match.SharesName(p.Name, n) || match.Conflicts(p.Name, n) {
+		// A byway or river's pin is on its route, and their official names
+		// are shorter ("Payette River Scenic Byway").
+		cands, minScore, maxKm := names, officialScore, float64(officialKm)
+		if match.IsByway(p.Name) || match.IsWildRiver(p.Name) {
+			minScore, maxKm = alongScore, alongKm
+		} else if !match.EndsInTrail(p.Name) {
+			cands = nil // keeps its OpenStreetMap route
+		}
+		for _, n := range cands {
+			if !match.RouteFits(p.Name, n) || !match.SharesName(p.Name, n) || match.Conflicts(p.Name, n) {
 				continue
 			}
 			// Only the trail itself takes the route, not a park named
 			// after it ("Trail of Tears State Forest"). Its pin can be well
 			// off a route across several states.
 			s := match.Similarity(p.Name, n)
-			if s < officialScore || s <= bestScore || nearestKm(routes[n].lines, p.Pt) > officialKm {
+			if s < minScore || s <= bestScore || nearestKm(routes[n].lines, p.Pt) > maxKm {
 				continue
 			}
 			best, bestScore = routes[n], s
@@ -137,7 +147,7 @@ func useOfficial(parks []*park, officialPath, merge, out string) error {
 		}
 		fmt.Printf("%s %s (%s) | official %q from %s %.2f, %.0f km, %s\n", p.Ref, p.Name, p.Loc, best.name, best.source, bestScore, km, was)
 	}
-	fmt.Printf("\n== Official routes: %d trail parks\n", used)
+	fmt.Printf("\n== Official routes: %d trail, byway and river parks\n", used)
 	if err := w.Flush(); err != nil {
 		return err
 	}
