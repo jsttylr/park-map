@@ -51,21 +51,25 @@ jobs:
               for r in d.get("results", []):
                   if "PADUS" in r["title"] or "PAD-US" in r["title"] or "Amrivers" in r["owner"]: continue
                   print("   ", r["title"], "|", r["owner"], "|", r.get("url"))
-          info("https://geodataservices.wdfw.wa.gov/arcgis/rest/services/WP_RealEstate")
-          lays("https://geodataservices.wdfw.wa.gov/arcgis/rest/services/WP_RealEstate/WaterAccessSites/MapServer")
-          lays("https://arcgis.dnr.alaska.gov/arcgis/rest/services/OpenData/Recreational_ParkBoundary/FeatureServer")
+          w = "https://geodataservices.wdfw.wa.gov/arcgis/rest/services/WP_RealEstate/"
+          for u in [w + "WildlifeAreas/MapServer", w + "Sites/MapServer", w + "ManagedPlaces/MapServer",
+                    "https://services5.arcgis.com/4LKAHwqnBooVDUlX/arcgis/rest/services/ParkBoundaries/FeatureServer",
+                    "https://services.arcgis.com/HQ0xoN0EzDPBOEci/arcgis/rest/services/State_Park_Boundaries/FeatureServer",
+                    "https://maps.prd.state.or.us/arcgis/rest/services/Land_ownership/Oregon_State_Parks/FeatureServer",
+                    "https://services.arcgis.com/uUvqNMGPm7axC2dD/arcgis/rest/services/StateForests_OwnershipManagedLands_View/FeatureServer",
+                    "https://services.arcgis.com/RyxlXSfFi87rAosq/arcgis/rest/services/NDOWWMAs/FeatureServer"]:
+              lays(u)
+          info("https://gis.dnr.wa.gov/site3/rest/services/Public_Boundaries/WADNR_PUBLIC_Cadastre_OpenData/MapServer/6")
+          sample("https://gis.dnr.wa.gov/site3/rest/services/Public_Boundaries/WADNR_PUBLIC_Cadastre_OpenData/MapServer/6", n=3)
+          was = w + "WaterAccessSites/MapServer/0"
+          names(was, "WaterAccessSiteName", "WaterAccessSiteName LIKE '%Jameson%' OR WaterAccessSiteName LIKE '%Silver%' OR WaterAccessSiteName LIKE '%Badger%' OR WaterAccessSiteName LIKE '%Rapjohn%' OR WaterAccessSiteName LIKE '%Ohop%' OR WaterAccessSiteName LIKE '%Munn%'")
+          group(was, "ManagingEntity")
+          hi = "https://geodata.hawaii.gov/arcgis/rest/services/Terrestrial/MapServer/1"
+          group(hi, "type_defin"); names(hi, "xname", "xname LIKE '%Ewa%' OR xname LIKE '%Honolulu%' OR xname LIKE '%Kuli%' OR xname LIKE '%Waimanalo%' OR xname LIKE '%Kiholo%'")
+          ca = "https://gis.parks.ca.gov/server/rest/services/EnterpriseGIS/CSPBoundaries_Portal/FeatureServer/0"
+          names(ca, "UNIT_NAME", "UNIT_NAME LIKE '%Railroad%' OR UNIT_NAME LIKE '%Lake Valley%' OR UNIT_NAME LIKE '%Oceano%' OR UNIT_NAME LIKE '%Tijuana%' OR UNIT_NAME LIKE '%Hearst%' OR UNIT_NAME LIKE '%Cowell%'")
           ak = "https://arcgis.dnr.alaska.gov/arcgis/rest/services/OpenData/Recreational_ParkBoundary/FeatureServer/2"
-          print("   count", get(ak + "/query", where="1=1", returnCountOnly="true", f="json"))
-          info("https://geodata.hawaii.gov/arcgis/rest/services")
-          info("https://geodata.hawaii.gov/arcgis/rest/services/Terrestrial/MapServer")
-          lays("https://geodata.hawaii.gov/arcgis/rest/services/Terrestrial/MapServer")
-          info("https://geodata.hawaii.gov/arcgis/rest/services/Infrastructure/MapServer")
-          lays("https://gis.parks.ca.gov/server/rest/services/EnterpriseGIS/CSPBoundaries_Portal/FeatureServer")
-          info("https://gis.dnr.wa.gov/site3/rest/services")
-          info("https://nrimp.dfw.state.or.us/arcgis/rest/services/Hatchery/Hatchery_and_Hatchery_Facilities/FeatureServer/0")
-          lays("https://nrimp.dfw.state.or.us/arcgis/rest/services/ORHAM/ODFW_Wildlife_Areas/MapServer")
-          for q in ["WDFW lands", "WDFW water access sites", "Washington DNR managed lands", "Washington state parks boundaries", "Washington DNR state forests",
-                    "Alaska state recreation sites", "Hawaii state parks", "Hawaii Na Ala Hele trails", "Hawaii forest reserves",
-                    "ODFW hatcheries", "Oregon state parks boundaries", "Oregon state forests ODF",
-                    "NDOW wildlife management areas", "Nevada state parks boundaries", "Nevada historical markers"]:
-              osearch(q)
+          group(ak, "PRKTYPABRV")
+          names(ak, "PARKNAME", "PARKNAME LIKE '%Anchor%' OR PARKNAME LIKE '%Big Lake%' OR PARKNAME LIKE '%Chilkoot%' OR PARKNAME LIKE '%Eagle Beach%' OR PARKNAME LIKE '%Chena%' OR PARKNAME LIKE '%Kenai%' OR PARKNAME LIKE '%Hatcher%'")
+          od = "https://nrimp.dfw.state.or.us/arcgis/rest/services/ORHAM/ODFW_Wildlife_Areas/MapServer/0"
+          group(od, "LandTypeID"); names(od, "AreaName", "1=1")
