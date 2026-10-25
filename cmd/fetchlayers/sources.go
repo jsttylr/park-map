@@ -323,6 +323,46 @@ var sources = []source{
 	{Label: "Connecticut DEEP property", URL: "https://services1.arcgis.com/FjPcSmEFuDYlIdKC/arcgis/rest/services/Connecticut_DEEP_Property/FeatureServer/0",
 		Name: field("PROPERTY", ""), State: "CT", Manager: "CT DEEP", Designation: "STATE", Class: "CT DEEP Property"},
 
+	// The fifth ring. North Dakota state parks and recreation areas, and
+	// Game and Fish wildlife management areas (named without "WMA").
+	{Label: "North Dakota state parks", URL: "https://services1.arcgis.com/GOcSXpzwBHyk2nog/ArcGIS/rest/services/NDGISHUB_State_Parks/FeatureServer/0",
+		Name: field("UNIT_NAME", ""), State: "ND", Manager: "ND Parks", Designation: "STATE", Class: "ND State Parks"},
+	{Label: "North Dakota wildlife management areas", URL: "https://services1.arcgis.com/GOcSXpzwBHyk2nog/ArcGIS/rest/services/NDGISHUB_Wildlife_Management_Areas/FeatureServer/0",
+		Name: field("Unit_Name", wma), State: "ND", Manager: "NDGF", Designation: "STATE", Class: "ND WMAs"},
+
+	// Montana Fish, Wildlife and Parks: fishing access sites, state parks and
+	// wildlife management areas, all named without their kind.
+	{Label: "Montana fishing access sites", URL: "https://fwp-gis.mt.gov/arcgis/rest/services/fwplnd/fwpLands/MapServer/2",
+		Name: field("NAME", "Fishing Access Site"), State: "MT", Manager: "MT FWP", Designation: "STATE", Class: "MT Fishing Access Sites"},
+	{Label: "Montana state parks", URL: "https://fwp-gis.mt.gov/arcgis/rest/services/fwplnd/fwpLands/MapServer/5",
+		Name: field("NAME", "State Park"), State: "MT", Manager: "MT FWP", Designation: "STATE", Class: "MT State Parks"},
+	{Label: "Montana wildlife management areas", URL: "https://fwp-gis.mt.gov/arcgis/rest/services/fwplnd/fwpLands/MapServer/8",
+		Name: field("NAME", wma), State: "MT", Manager: "MT FWP", Designation: "STATE", Class: "MT WMAs"},
+
+	// Idaho Fish and Game wildlife management areas ("RED RIVER WMA").
+	{Label: "Idaho wildlife management areas", URL: "https://services.arcgis.com/FjJI5xHF2dUPVrgK/arcgis/rest/services/WildlifeManagementAreas/FeatureServer/0",
+		Name: spelled("Name", map[string]string{"WMA": wma, "WMU": "Wildlife Management Unit"}), State: "ID", Manager: "IDFG", Designation: "STATE", Class: "ID WMAs"},
+
+	// Utah: Wildlife Resources and State Parks land on the trust lands
+	// office's ownership map.
+	{Label: "Utah wildlife and state park lands", URL: "https://gis.trustlands.utah.gov/mapping/rest/services/Land_Ownership/FeatureServer/0",
+		Where: "admin IN ('UDWR', 'USP')", Name: field("label_state", ""), State: "UT", Manager: "UT DNR", Designation: "STATE", Class: "UT DWR and State Parks"},
+
+	// New Hampshire: land the state owns outright on GRANIT's conservation
+	// lands map (state parks, forests, WMAs, natural areas).
+	{Label: "New Hampshire state lands", URL: "https://nhgeodata.unh.edu/hosting/rest/services/Hosted/EC_Conservation/FeatureServer/0",
+		Where: "ppagentype = 3 AND pptype = 'FO'", Name: spelled("name", map[string]string{"WMA": wma}), State: "NH", Manager: "NH DNCR", Designation: "STATE", Class: "NH State Lands"},
+
+	// Maine state conservation lands (Bureau of Parks and Lands, Inland
+	// Fisheries and Wildlife), without the lakes themselves.
+	{Label: "Maine state conservation lands", URL: "https://gis.maine.gov/mapservices/rest/services/dep/Maine_DEP_Outstanding_National_Resource_Waters/MapServer/5",
+		Where: "HOLD1_TYPE = 'State' AND DESIGNATION <> 'WATERBODY'", Name: spelled("PROJECT", map[string]string{"WMA": wma}), State: "ME", Manager: "ME DACF", Designation: "STATE", Class: "ME State Conservation Lands"},
+
+	// Rhode Island DEM land; single parcels are named after their former
+	// owners ("Barber, Arthur") and are left out.
+	{Label: "Rhode Island DEM lands", URL: "https://risegis.ri.gov/hosting/rest/services/RIDEM/Outdoor_Recreation_Map_v4/FeatureServer/21",
+		Where: "NAME NOT LIKE '%,%'", Name: field("NAME", ""), State: "RI", Manager: "RI DEM", Designation: "STATE", Class: "RI DEM Lands"},
+
 	// Official routes of the national historic and scenic trails, mostly old
 	// roads and water routes that OpenStreetMap doesn't map as one trail.
 	{Label: "NPS Captain John Smith Chesapeake NHT", URL: nps + "CAJO_Captain_John_Smith_Chesapeake_NHT_Centerline_ln/FeatureServer/0",
